@@ -321,13 +321,14 @@ public class Minecraft implements Runnable {
         // Listen for mouse inputs
         while (Mouse.next()) {
             // Right click
-            if (Mouse.getEventButton() == 1 && Mouse.getEventButtonState() && this.hitResult != null) {
+            if (Mouse.getEventButton() == 0 && Mouse.getEventButtonState() && this.hitResult != null) {
                 // Destroy the tile
                 this.level.setTile(this.hitResult.x, this.hitResult.y, this.hitResult.z, 0);
+                SocketClient.sendMessage(String.format("BLOCK_BREAK at %s, %s, %s", this.hitResult.x,  this.hitResult.y, this.hitResult.z));
             }
 
             // Left click
-            if (Mouse.getEventButton() == 0 && Mouse.getEventButtonState() && this.hitResult != null) {
+            if (Mouse.getEventButton() == 1 && Mouse.getEventButtonState() && this.hitResult != null) {
                 // Get target tile position
                 int x = this.hitResult.x;
                 int y = this.hitResult.y;
@@ -343,6 +344,7 @@ public class Minecraft implements Runnable {
 
                 // Set the tile
                 this.level.setTile(x, y, z, 1);
+                SocketClient.sendMessage(String.format("BLOCK_PLACE at %s, %s, %s", this.hitResult.x,  this.hitResult.y, this.hitResult.z));
             }
         }
 
