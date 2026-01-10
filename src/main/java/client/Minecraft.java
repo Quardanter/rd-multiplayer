@@ -14,8 +14,10 @@ import org.lwjgl.opengl.DisplayMode;
 
 import javax.swing.*;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.Properties;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.util.glu.GLU.gluPerspective;
@@ -23,6 +25,20 @@ import static org.lwjgl.util.glu.GLU.gluPickMatrix;
 
 public class Minecraft implements Runnable {
     public static Minecraft mc;
+
+    //for versioning and shit
+    public static final String GIT_HASH;
+    static {
+        String hash = "unknown";
+        try (InputStream in = Minecraft.class.getResourceAsStream("/git.properties")) {
+            if (in != null) {
+                Properties props = new Properties();
+                props.load(in);
+                hash = props.getProperty("git.commit", hash);
+            }
+        } catch (Exception ignored) {}
+        GIT_HASH = hash;
+    }
 
     SocketClient socket = new SocketClient("localhost", 9090);
     Thread socketThread = new Thread(socket);
@@ -87,6 +103,8 @@ public class Minecraft implements Runnable {
         // Set screen size
         Display.setDisplayMode(new DisplayMode(this.width, this.height));
 
+        Display.setTitle("rd-multiplayer " + GIT_HASH);
+
         // Setup I/O
         Display.create();
         Keyboard.create();
@@ -127,7 +145,7 @@ public class Minecraft implements Runnable {
             init();
             System.out.println("Game initialized, waiting for server level...");
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, e, "Failed to start RubyDung", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, e, "Failed to start Minecraft", JOptionPane.ERROR_MESSAGE);
             System.exit(0);
         }
 

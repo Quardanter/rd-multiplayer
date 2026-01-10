@@ -42,3 +42,42 @@ task("extractNatives", Copy::class) {
     from(natives.map { zipTree(it) })
     into("${project.projectDir.toPath()}\\run\\natives")
 }
+
+val gitCommitHash: String by extra {
+    val (hashOutput, _) = "git rev-parse HEAD".runCommand()
+    val hash = hashOutput.trim().take(10)
+
+    val isDirty = listOf(
+        "git diff --quiet --ignore-submodules".runCommand(),
+        "git diff --cached --quiet".runCommand()
+    ).any { (_, code) -> code != 0 }
+
+    if (isDirty) "$hash+" else hash
+}
+
+fun String.runCommand(): Pair<String, Int> {
+    return try {
+        val parts = this.split("\\s".toRegex())
+        val proc = ProcessBuilder(*parts.toTypedArray())
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        val output = proc.inputStream.bufferedReader().readText()
+        val exitCode = proc.waitFor()
+        output to exitCode
+    } catch (e: Exception) {
+        "" to -1
+    }
+}
+
+
+tasks.register("generateGitHash") {
+    doLast {
+        val file = file("src/main/resources/git.properties")
+        file.writeText("git.commit=$gitCommitHash")
+    }
+}
+
+tasks.named("processResources") {
+    dependsOn("generateGitHash")
+}
