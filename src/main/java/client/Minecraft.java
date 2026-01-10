@@ -104,6 +104,7 @@ public class Minecraft implements Runnable {
         Display.setDisplayMode(new DisplayMode(this.width, this.height));
 
         Display.setTitle("rd-multiplayer " + GIT_HASH);
+        Display.setVSyncEnabled(true);
 
         // Setup I/O
         Display.create();
