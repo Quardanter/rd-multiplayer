@@ -1,11 +1,9 @@
 package server;
 
+import global.Packets;
 import server.level.Level;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Set;
@@ -15,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Server {
     public static Level level;
 
-    private static final Set<PrintWriter> clients = ConcurrentHashMap.newKeySet();
+    private static final Set<DataOutputStream> clients = ConcurrentHashMap.newKeySet();
 
     public static void main(String args[]) throws IOException {
         level = new Level(256, 256, 64);
@@ -36,59 +34,83 @@ public class Server {
         }
     }
 
-    private static void handleClient(Socket clientSocket) {
-        PrintWriter out = null;
+    private static void handleClient(Socket socket) {
+        DataInputStream in = null;
+        DataOutputStream out = null;
 
         try {
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(clientSocket.getInputStream()));
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
+            in = new DataInputStream(socket.getInputStream());
+            out = new DataOutputStream(socket.getOutputStream());
 
             clients.add(out);
 
-            String message;
-            while ((message = in.readLine()) != null) {
-                String[] parts = message.split(" ");
+            while (true) {
+                byte packetId = in.readByte();
 
-                if (message.startsWith("BLOCK_BREAK")) {
-                    String[] coords = parts[1].split(",");
-                    int x = Integer.parseInt(coords[0].trim());
-                    int y = Integer.parseInt(coords[1].trim());
-                    int z = Integer.parseInt(coords[2].trim());
+                switch (packetId) {
 
-                    level.setTile(x, y, z, 0);
-                    broadcast(String.format("BLOCK_BREAK %d,%d,%d", x, y, z));
+                    case Packets.BLOCK_BREAK: {
+                        int x = in.readInt();
+                        int y = in.readInt();
+                        int z = in.readInt();
 
-                } else if (message.startsWith("BLOCK_PLACE")) {
-                    String[] coords = parts[1].split(",");
-                    int x = Integer.parseInt(coords[0].trim());
-                    int y = Integer.parseInt(coords[1].trim());
-                    int z = Integer.parseInt(coords[2].trim());
+                        level.setTile(x, y, z, 0);
+                        broadcastBlock(Packets.BLOCK_BREAK, x, y, z);
+                        break;
+                    }
 
-                    level.setTile(x, y, z, 1);
-                    broadcast(String.format("BLOCK_PLACE %d,%d,%d", x, y, z));
+                    case Packets.BLOCK_PLACE: {
+                        int x = in.readInt();
+                        int y = in.readInt();
+                        int z = in.readInt();
 
-                } else {
-                    out.println("[ECHO] " + message);
+                        level.setTile(x, y, z, 1);
+                        broadcastBlock(Packets.BLOCK_PLACE, x, y, z);
+                        break;
+                    }
+
+                    case Packets.LEVEL_DATA: {
+                        sendLevel(out);
+                        break;
+                    }
+
+                    default:
+                        System.err.println("Unknown packet id: " + packetId);
+                        break;
                 }
             }
 
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Client disconnected.");
         } finally {
             if (out != null) {
-                clients.remove(out);
+                clients.remove(out); // IMPORTANT
             }
             try {
-                clientSocket.close();
+                socket.close();
             } catch (IOException ignored) {}
-            System.out.println("Client disconnected.");
         }
     }
 
-    private static void broadcast(String message) {
-        for (PrintWriter client : clients) {
-            client.println(message);
+    private static void broadcastBlock(byte type, int x, int y, int z) {
+        for (DataOutputStream out : clients) {
+            try {
+                out.writeByte(type);
+                out.writeInt(x);
+                out.writeInt(y);
+                out.writeInt(z);
+                out.flush();
+            } catch (IOException ignored) {}
         }
+    }
+
+    private static void sendLevel(DataOutputStream out) throws IOException {
+        out.writeByte(Packets.LEVEL_DATA);
+        out.writeInt(level.width);
+        out.writeInt(level.height);
+        out.writeInt(level.depth);
+        out.writeInt(level.blocks.length);
+        out.write(level.blocks);
+        out.flush();
     }
 }

@@ -19,7 +19,7 @@ public class Level {
     public final int height;
     public final int depth;
 
-    private final byte[] blocks;
+    public final byte[] blocks;
     private final int[] lightDepths;
 
     /**

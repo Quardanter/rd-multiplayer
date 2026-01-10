@@ -3,6 +3,7 @@ package client;
 import client.level.Chunk;
 import client.level.Level;
 import client.level.LevelRenderer;
+import global.Packets;
 import client.net.SocketClient;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.LWJGLException;
@@ -308,7 +309,7 @@ public class Minecraft implements Runnable {
      *
      * @param partialTicks Overflow ticks to calculate smooth a movement
      */
-    private void render(float partialTicks) {
+    private void render(float partialTicks) throws IOException {
         // Get mouse motion
         float motionX = Mouse.getDX();
         float motionY = Mouse.getDY();
@@ -324,7 +325,7 @@ public class Minecraft implements Runnable {
             if (Mouse.getEventButton() == 0 && Mouse.getEventButtonState() && this.hitResult != null) {
                 // Destroy the tile
                // this.level.setTile(this.hitResult.x, this.hitResult.y, this.hitResult.z, 0);
-                SocketClient.sendMessage(String.format("BLOCK_BREAK %s,%s,%s", this.hitResult.x,  this.hitResult.y, this.hitResult.z));
+                SocketClient.sendBlock(Packets.BLOCK_BREAK, this.hitResult.x, this.hitResult.y, this.hitResult.z);
             }
 
             if (Mouse.getEventButton() == 1 && Mouse.getEventButtonState() && this.hitResult != null) {
@@ -343,7 +344,7 @@ public class Minecraft implements Runnable {
 
                 // Set the tile
                // this.level.setTile(x, y, z, 1);
-                SocketClient.sendMessage(String.format("BLOCK_PLACE %s,%s,%s", x,  y, z));
+                SocketClient.sendBlock(Packets.BLOCK_PLACE, x, y, z);
             }
         }
 
