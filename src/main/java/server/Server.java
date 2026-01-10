@@ -17,6 +17,7 @@ public class Server {
 
     public static void main(String args[]) throws IOException {
         level = new Level(256, 256, 64);
+        level.save();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Saving level...");
