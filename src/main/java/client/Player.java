@@ -90,28 +90,15 @@ public class Player {
         float vertical = 0.0F;
 
         // Reset the position of the player
-        if (Keyboard.isKeyDown(19)) { // R
+        if (Keyboard.isKeyDown(Keyboard.KEY_R)) { // R
             resetPosition();
         }
 
         // Player movement
-        if (Keyboard.isKeyDown(200) || Keyboard.isKeyDown(17)) { // Up, W
-            forward--;
-        }
-        if (Keyboard.isKeyDown(208) || Keyboard.isKeyDown(31)) { // Down, S
-            forward++;
-        }
-        if (Keyboard.isKeyDown(203) || Keyboard.isKeyDown(30)) { // Left, A
-            vertical--;
-        }
-        if (Keyboard.isKeyDown(205) || Keyboard.isKeyDown(32)) {  // Right, D
-            vertical++;
-        }
-        if ((Keyboard.isKeyDown(57) || Keyboard.isKeyDown(219))) { // Space, Windows Key
-            if (this.onGround) {
-                this.motionY = 0.12F;
-            }
-        }
+        if (Keyboard.isKeyDown(Keyboard.KEY_W) || Keyboard.isKeyDown(Keyboard.KEY_UP)) forward--;
+        if (Keyboard.isKeyDown(Keyboard.KEY_S) || Keyboard.isKeyDown(Keyboard.KEY_DOWN)) forward++;
+        if (Keyboard.isKeyDown(Keyboard.KEY_A) || Keyboard.isKeyDown(Keyboard.KEY_LEFT)) strafe--;
+        if (Keyboard.isKeyDown(Keyboard.KEY_D) || Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) strafe++;
 
         boolean sprinting = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
         float speed = sprinting ? 0.08F : 0.04F; // sprintSpeed : groundSpeed
