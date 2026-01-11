@@ -30,7 +30,7 @@ import static org.lwjgl.util.glu.GLU.gluPickMatrix;
 public class Minecraft implements Runnable {
     public static Minecraft mc;
 
-    public String username = "aze";
+    public String username;
 
     //for versioning and shit
     public static final String GIT_HASH;
@@ -48,9 +48,6 @@ public class Minecraft implements Runnable {
 
     public long rtt;
 
-    SocketClient socket = new SocketClient("localhost", 9090, username);
-    Thread socketThread = new Thread(socket);
-
     private final Timer timer = new Timer(60);
 
     public Level level;
@@ -59,6 +56,8 @@ public class Minecraft implements Runnable {
     private FontRenderer font;
     private Font minecraftFont;
     public Chat chat;
+    public SocketClient socket;
+    public Thread socketThread;
 
     private Crosshair crosshair;
     private Info info;
@@ -96,8 +95,11 @@ public class Minecraft implements Runnable {
         System.out.println("Level loaded from server!");
     }
 
-    public Minecraft() throws IOException {
+    public Minecraft(String ip, int port, String username) throws IOException {
         mc = this;
+        this.username = username;
+        this.socket = new SocketClient(ip, port, username);
+        this.socketThread = new Thread(socket);
     }
 
     /**
@@ -479,16 +481,5 @@ public class Minecraft implements Runnable {
         keepAliveThread.start();
     }
 
-
-    /**
-     * Entry point of the game
-     *
-     * @param args Program arguments (unused)
-     */
-    public static void main(String[] args) throws IOException {
-        new Thread(new Minecraft()).start();
-    }
-
-    public Minecraft getMc() { return mc; };
     public Level getLevel() {return level;}
 }

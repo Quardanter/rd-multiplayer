@@ -198,7 +198,7 @@ public class Server {
 
     private static void broadcastConnection(int type, Client _client) {
         for (Client client : clients) {
-            if(client == _client) return;
+            if (client == _client) continue;
             DataOutputStream out = client.getOut();
             try {
                 out.writeByte(Packets.CONNECTION);
@@ -208,6 +208,7 @@ public class Server {
             } catch (IOException ignored) {}
         }
     }
+
 
     private static void broadcastChat(String author, String message) {
         for (Client client : clients) {
