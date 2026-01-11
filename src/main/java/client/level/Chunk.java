@@ -8,7 +8,7 @@ import static org.lwjgl.opengl.GL11.*;
 
 public class Chunk {
 
-    private static final int TEXTURE = Textures.loadTexture("/client/terrain.png", GL_NEAREST);
+    private static final int TEXTURE = Textures.loadTexture("/client/textures/terrain.png", GL_NEAREST);
     private static final Tessellator TESSELLATOR = new Tessellator();
 
     /**

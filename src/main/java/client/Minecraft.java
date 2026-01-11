@@ -1,5 +1,7 @@
 package client;
 
+import client.hud.Crosshair;
+import client.hud.Info;
 import client.level.Chunk;
 import client.level.Level;
 import client.level.LevelRenderer;
@@ -48,12 +50,13 @@ public class Minecraft implements Runnable {
 
     public Level level;
     public LevelRenderer levelRenderer;
-    private Player player;
+    public Player player;
     private FontRenderer font;
     private Font minecraftFont;
 
-    private int crosshairTex;
-    private int fps;
+    private Crosshair crosshair;
+    private Info info;
+    public int fps;
 
     private final FloatBuffer fogColor = BufferUtils.createFloatBuffer(4);
 
@@ -106,9 +109,8 @@ public class Minecraft implements Runnable {
                 255 / 255.0F
         }).flip();
 
-        // Set screen size
+        // Display cfg
         Display.setDisplayMode(new DisplayMode(this.width, this.height));
-
         Display.setTitle("rd-multiplayer " + GIT_HASH);
         Display.setVSyncEnabled(true);
 
@@ -116,8 +118,6 @@ public class Minecraft implements Runnable {
         Display.create();
         Keyboard.create();
         Mouse.create();
-
-        crosshairTex = Textures.loadTexture("/client/crosshair.png", GL_NEAREST);
 
         // Setup rendering
         glEnable(GL_TEXTURE_2D);
@@ -135,6 +135,11 @@ public class Minecraft implements Runnable {
         }
 
         font = new FontRenderer(minecraftFont);
+
+        crosshair = new Crosshair(16, "/client/textures/crosshair.png");
+        info = new Info(font);
+
+
 
         // Grab mouse cursor
         Mouse.setGrabbed(true);
@@ -426,8 +431,8 @@ public class Minecraft implements Runnable {
 
             glDisable(GL_FOG);
 
-            renderCrosshair();
-            renderHUD();
+            crosshair.render(width, height);
+            info.render(width, height);
 
         } else {
             glClearColor(0, 0, 0, 1);
@@ -436,83 +441,6 @@ public class Minecraft implements Runnable {
 
         Display.update();
     }
-
-    private void renderHUD() {
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        glOrtho(0, width, height, 0, -1, 1);
-
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
-        glEnable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glColor4f(1f, 1f, 1f, 1f);
-
-        font.drawString(String.format("XYZ: %.0f, %.0f, %.0f", player.x, player.y, player.z),5, 1, true);
-        font.drawString("FPS: " + fps, 5, 21, true);
-
-        Textures.bind(0); //reset the bind shi otherwise it breaks
-
-        glDisable(GL_BLEND);
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_CULL_FACE);
-
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-    }
-
-    private void renderCrosshair() {
-        int size = 16;
-        int x = width / 2 - size / 2;
-        int y = height / 2 - size / 2;
-
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        glOrtho(0, width, height, 0, -1, 1);
-
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
-        glEnable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glColor4f(1f, 1f, 1f, 0.6f);
-
-        Textures.bind(crosshairTex);
-
-        glBegin(GL_QUADS);
-        glTexCoord2f(0, 0); glVertex2f(x, y);
-        glTexCoord2f(1, 0); glVertex2f(x + size, y);
-        glTexCoord2f(1, 1); glVertex2f(x + size, y + size);
-        glTexCoord2f(0, 1); glVertex2f(x, y + size);
-        glEnd();
-
-        Textures.bind(0); //reset the bind shi otherwise it breaks
-
-        glDisable(GL_BLEND);
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_CULL_FACE);
-
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-    }
-
-
-
 
     /**
      * Entry point of the game
