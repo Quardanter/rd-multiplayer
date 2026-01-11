@@ -13,6 +13,7 @@ public class Player {
     public double x, y, z;
     public double prevX, prevY, prevZ;
     public double motionX, motionY, motionZ;
+    public float width, height;
     public float xRotation, yRotation;
 
     private boolean onGround;
@@ -44,8 +45,8 @@ public class Player {
         this.z = z;
 
         // Player size
-        float width = 0.3F;
-        float height = 0.9F;
+        this.width = 0.3F;
+        this.height = 0.9F;
 
         // Set the position of the bounding box
         this.boundingBox = new AABB(x - width, y - height,

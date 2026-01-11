@@ -362,8 +362,28 @@ public class Minecraft implements Runnable {
                         if (hitResult.face == 3) z++;
                         if (hitResult.face == 4) x--;
                         if (hitResult.face == 5) x++;
+
+                        float pMinX = (float) (player.x - player.width);
+                        float pMaxX = (float) (player.x + player.width);
+                        float pMinY = (float) (player.y - player.height);
+                        float pMaxY = (float) (player.y + player.height);
+                        float pMinZ = (float) (player.z - player.width);
+                        float pMaxZ = (float) (player.z + player.width);
+
+                        float bMinX = x;
+                        float bMaxX = x + 1;
+                        float bMinY = y;
+                        float bMaxY = y + 1;
+                        float bMinZ = z;
+                        float bMaxZ = z + 1;
+
+                        boolean intersects = pMaxX > bMinX && pMinX < bMaxX && pMaxY > bMinY && pMinY < bMaxY && pMaxZ > bMinZ && pMinZ < bMaxZ;
+
+                        if (intersects) return;
+
                         SocketClient.sendBlock(Packets.BLOCK_PLACE, x, y, z);
                     }
+
                 }
             }
 
