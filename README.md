@@ -2,8 +2,9 @@
 The first version of Minecraft, but multi-player!
 
 Full credits to Notch and the decompile codebase at: [thecodeofnotch/rd-131122](https://github.com/thecodeofnotch/rd-132211).
-<details>
-  <summary>Preview video as of <code>58a7142757+</code></summary>
+
+  Preview video as of <code>58a7142757+</code>:
+
 
   <br>
 
@@ -11,7 +12,6 @@ Full credits to Notch and the decompile codebase at: [thecodeofnotch/rd-131122](
     <img src="https://img.youtube.com/vi/5qlTXX0Mn8U/hqdefault.jpg" width="240">
   </a>
 
-</details>
 
 ## installation
 
