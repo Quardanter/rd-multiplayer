@@ -6,6 +6,7 @@ import client.hud.Info;
 import client.level.Chunk;
 import client.level.Level;
 import client.level.LevelRenderer;
+import client.net.PlayerManager;
 import global.Packets;
 import client.net.SocketClient;
 import org.lwjgl.BufferUtils;
@@ -58,6 +59,7 @@ public class Minecraft implements Runnable {
     public Chat chat;
     public SocketClient socket;
     public Thread socketThread;
+    public PlayerManager playerManager;
 
     private Crosshair crosshair;
     private Info info;
@@ -100,6 +102,7 @@ public class Minecraft implements Runnable {
         this.username = username;
         this.socket = new SocketClient(ip, port, username);
         this.socketThread = new Thread(socket);
+        this.playerManager = new PlayerManager();
     }
 
     /**
@@ -479,6 +482,10 @@ public class Minecraft implements Runnable {
         }, "KeepAliveThread");
         keepAliveThread.setDaemon(true);
         keepAliveThread.start();
+    }
+
+    public PlayerManager getPlayerManager() {
+        return playerManager;
     }
 
     public Level getLevel() {return level;}

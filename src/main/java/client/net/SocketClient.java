@@ -103,6 +103,15 @@ public class SocketClient implements Runnable {
                         break;
                     }
 
+                    case Packets.POS: {
+                        String username = in.readUTF();
+                        double x = in.readDouble();
+                        double y = in.readDouble();
+                        double z = in.readDouble();
+                        Minecraft.mc.getPlayerManager().updatePlayer(username, x, y, z);
+                        break;
+                    }
+
                     default:
                         System.err.println("Unknown packet: " + packetId);
                         break;
