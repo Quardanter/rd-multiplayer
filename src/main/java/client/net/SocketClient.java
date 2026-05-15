@@ -130,34 +130,44 @@ public class SocketClient implements Runnable {
         }
     }
 
+    private static final Object writeLock = new Object();
+
     public static void sendBlock(int packet, int x, int y, int z) throws IOException {
-        out.writeByte(packet);
-        out.writeInt(x);
-        out.writeInt(y);
-        out.writeInt(z);
-        out.flush();
+        synchronized (writeLock) {
+            out.writeByte(packet);
+            out.writeInt(x);
+            out.writeInt(y);
+            out.writeInt(z);
+            out.flush();
+        }
     }
 
     public static void sendPos(int packet, double x, double y, double z, float yaw) throws IOException {
-        out.writeByte(packet);
-        out.writeDouble(x);
-        out.writeDouble(y);
-        out.writeDouble(z);
-        out.writeFloat(yaw);
-        out.flush();
+        synchronized (writeLock) {
+            out.writeByte(packet);
+            out.writeDouble(x);
+            out.writeDouble(y);
+            out.writeDouble(z);
+            out.writeFloat(yaw);
+            out.flush();
+        }
     }
 
     public static void sendKeepalive(long timestamp) throws IOException {
-        out.writeByte(Packets.KEEPALIVE);
-        out.writeLong(timestamp);
-        out.flush();
+        synchronized (writeLock) {
+            out.writeByte(Packets.KEEPALIVE);
+            out.writeLong(timestamp);
+            out.flush();
+        }
     }
 
     public static void sendChat(String author, String message) throws IOException {
-        out.writeByte(Packets.CHAT);
-        out.writeUTF(author);
-        out.writeUTF(message);
-        out.flush();
+        synchronized (writeLock) {
+            out.writeByte(Packets.CHAT);
+            out.writeUTF(author);
+            out.writeUTF(message);
+            out.flush();
+        }
     }
 
     public boolean isConnected() {

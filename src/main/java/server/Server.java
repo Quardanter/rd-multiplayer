@@ -6,8 +6,6 @@ import server.level.Level;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -16,7 +14,7 @@ public class Server {
     public static Level level;
 
     private static final Set<Client> clients = ConcurrentHashMap.newKeySet();
-    private static Map<Client, Long> lastKeepAlive = new HashMap<>();
+    private static final ConcurrentHashMap<Client, Long> lastKeepAlive = new ConcurrentHashMap<>();
 
     public static void main(String args[]) throws IOException {
         level = new Level(256, 256, 64);
@@ -117,14 +115,15 @@ public class Server {
                     case Packets.KEEPALIVE: {
                         lastKeepAlive.put(client, System.currentTimeMillis());
                         long clientTime = in.readLong();
-                        out.writeByte(Packets.KEEPALIVE);
-                        out.writeLong(clientTime);
-                        out.flush();
+                        client.send(o -> {
+                            o.writeByte(Packets.KEEPALIVE);
+                            o.writeLong(clientTime);
+                        });
                         break;
                     }
 
                     case Packets.REQUEST_LEVEL: {
-                        sendLevel(out);
+                        client.send(o -> sendLevel(o));
                         break;
                     }
 
@@ -151,12 +150,15 @@ public class Server {
             }
 
         } catch (IOException e) {
-            if(client != null) {
+            if (client != null) {
                 broadcastConnection(1, client);
             }
             System.out.println("client disconnected: " + (client != null ? client.getUsername() : "unknown"));
         } finally {
-            if (client != null) clients.remove(client);
+            if (client != null) {
+                clients.remove(client);
+                lastKeepAlive.remove(client);
+            }
             try {
                 socket.close();
             } catch (IOException ignored) {}
@@ -191,59 +193,49 @@ public class Server {
         timeoutThread.start();
     }
 
-
     private static void broadcastBlock(byte type, int x, int y, int z) {
         for (Client client : clients) {
-            DataOutputStream out = client.getOut();
-            try {
-                out.writeByte(type);
-                out.writeInt(x);
-                out.writeInt(y);
-                out.writeInt(z);
-                out.flush();
-            } catch (IOException ignored) {}
+            client.send(o -> {
+                o.writeByte(type);
+                o.writeInt(x);
+                o.writeInt(y);
+                o.writeInt(z);
+            });
         }
     }
 
     private static void broadcastConnection(int type, Client _client) {
         for (Client client : clients) {
             if (client == _client) continue;
-            DataOutputStream out = client.getOut();
-            try {
-                out.writeByte(Packets.CONNECTION);
-                out.writeInt(type);
-                out.writeUTF(_client.getUsername());
-                out.flush();
-            } catch (IOException ignored) {}
+            client.send(o -> {
+                o.writeByte(Packets.CONNECTION);
+                o.writeInt(type);
+                o.writeUTF(_client.getUsername());
+            });
         }
     }
 
-
     private static void broadcastChat(String author, String message) {
         for (Client client : clients) {
-            DataOutputStream out = client.getOut();
-            try {
-                out.writeByte(Packets.CHAT);
-                out.writeUTF(author);
-                out.writeUTF(message);
-                out.flush();
-            } catch (IOException ignored) {}
+            client.send(o -> {
+                o.writeByte(Packets.CHAT);
+                o.writeUTF(author);
+                o.writeUTF(message);
+            });
         }
     }
 
     private static void broadcastPos(Client _client, double x, double y, double z, float yaw) {
         for (Client client : clients) {
             if (client == _client) continue;
-            DataOutputStream out = client.getOut();
-            try {
-                out.writeByte(Packets.POS);
-                out.writeUTF(_client.getUsername());
-                out.writeDouble(x);
-                out.writeDouble(y);
-                out.writeDouble(z);
-                out.writeFloat(yaw);
-                out.flush();
-            } catch (IOException ignored) {}
+            client.send(o -> {
+                o.writeByte(Packets.POS);
+                o.writeUTF(_client.getUsername());
+                o.writeDouble(x);
+                o.writeDouble(y);
+                o.writeDouble(z);
+                o.writeFloat(yaw);
+            });
         }
     }
 
@@ -255,18 +247,32 @@ public class Server {
         out.writeInt(level.getDepth());
         out.writeInt(blocks.length);
         out.write(blocks);
-        out.flush();
+    }
+
+    @FunctionalInterface
+    interface PacketWriter {
+        void write(DataOutputStream out) throws IOException;
     }
 
     public static class Client {
         private final String username;
         private final Socket socket;
         private final DataOutputStream out;
+        private final Object writeLock = new Object();
 
         public Client(String username, Socket socket, DataOutputStream out) {
             this.username = username;
             this.socket = socket;
             this.out = out;
+        }
+
+        public void send(PacketWriter writer) {
+            synchronized (writeLock) {
+                try {
+                    writer.write(out);
+                    out.flush();
+                } catch (IOException ignored) {}
+            }
         }
 
         public String getUsername() {
@@ -280,7 +286,5 @@ public class Server {
         public DataOutputStream getOut() {
             return out;
         }
-
     }
-
 }
