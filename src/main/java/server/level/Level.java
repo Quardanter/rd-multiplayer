@@ -55,31 +55,31 @@ public class Level {
         load();
     }
 
-    /**
-     * Load blocks from level.dat
-     */
+    private static final Path LEVEL_PATH = Paths.get("level.dat");
+
     public void load() {
-        try {
-            DataInputStream dis = new DataInputStream(new GZIPInputStream(Files.newInputStream(Paths.get("./server/level.dat"))));
+        if (!Files.exists(LEVEL_PATH)) {
+            System.out.println("No level.dat found, using generated level.");
+            return;
+        }
+        try (DataInputStream dis = new DataInputStream(new GZIPInputStream(Files.newInputStream(LEVEL_PATH)))) {
             dis.readFully(this.blocks);
-            dis.close();
+            System.out.println("Level loaded from level.dat");
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Failed to load level.dat: " + e.getMessage());
         }
     }
 
-    /**
-     * Store blocks in level.dat
-     */
     public void save() {
         try {
-            Path path = Paths.get("./server/level.dat");
-            Files.createDirectories(path.getParent());
-            DataOutputStream dos = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(Paths.get("./server/level.dat"))));
-            dos.write(this.blocks);
-            dos.close();
+            Path parent = LEVEL_PATH.toAbsolutePath().getParent();
+            if (parent != null) Files.createDirectories(parent);
+            try (DataOutputStream dos = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(LEVEL_PATH)))) {
+                dos.write(this.blocks);
+            }
+            System.out.println("Level saved.");
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Failed to save level.dat: " + e.getMessage());
         }
     }
 
@@ -91,7 +91,6 @@ public class Level {
 
         // Set tile
         this.blocks[(y * this.height + z) * this.width + x] = (byte) id;
-        save();
     }
 
 

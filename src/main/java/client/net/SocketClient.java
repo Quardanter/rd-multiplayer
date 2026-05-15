@@ -25,7 +25,7 @@ public class SocketClient implements Runnable {
         try {
             socket = new Socket(host, port);
             in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
+            out = new DataOutputStream(new java.io.BufferedOutputStream(socket.getOutputStream(), 8192));
 
             out.writeByte(Packets.AUTH_REQUEST);
             out.writeUTF(username);

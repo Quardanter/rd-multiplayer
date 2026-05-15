@@ -4,10 +4,37 @@ import javax.swing.*;
 import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class Launcher {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
+        Path nativesDir = Files.createTempDirectory("lwjgl-natives-");
+        nativesDir.toFile().deleteOnExit();
+
+        String os = System.getProperty("os.name").toLowerCase();
+        String[] libs;
+        if (os.contains("win")) {
+            libs = new String[]{"lwjgl.dll", "lwjgl64.dll", "OpenAL32.dll", "OpenAL64.dll"};
+        } else if (os.contains("mac")) {
+            libs = new String[]{"liblwjgl.jnilib", "openal.dylib"};
+        } else {
+            libs = new String[]{"liblwjgl.so", "liblwjgl64.so", "libopenal.so", "libopenal64.so"};
+        }
+
+        for (String lib : libs) {
+            try (InputStream in = Launcher.class.getResourceAsStream("/natives/" + lib)) {
+                if (in != null) {
+                    Files.copy(in, nativesDir.resolve(lib), StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+
+        System.setProperty("org.lwjgl.librarypath", nativesDir.toAbsolutePath().toString());
+
         SwingUtilities.invokeLater(Launcher::showLauncher);
     }
 

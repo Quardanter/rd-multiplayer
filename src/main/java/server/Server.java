@@ -26,7 +26,7 @@ public class Server {
         }));
 
         ServerSocket serverSocket = new ServerSocket(9090);
-        System.out.println("server started...");
+        System.out.println("Server started on port 9090...");
 
         handleKeepalive();
 
@@ -45,7 +45,7 @@ public class Server {
 
         try {
             in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
+            out = new DataOutputStream(new java.io.BufferedOutputStream(socket.getOutputStream(), 8192));
 
             boolean authenticated = false;
             while (!authenticated) {

@@ -20,52 +20,80 @@ dependencies {
     natives(group = "org.lwjgl.lwjgl", name = "lwjgl-platform", version = "2.9.3", classifier = "natives-osx")
 }
 
-
 tasks.register<JavaExec>("runClient") {
-    val runDir = project.layout.projectDirectory.dir("run")
-    val nativesDir = runDir.dir("natives")
-
-    jvmArgs = listOf(
-        "-Dorg.lwjgl.librarypath=${nativesDir.asFile.absolutePath}"
-    )
-
+    val nativesDir = project.layout.projectDirectory.dir("run/natives")
+    jvmArgs = listOf("-Dorg.lwjgl.librarypath=${nativesDir.asFile.absolutePath}")
     mainClass.set("client.Launcher")
     classpath = sourceSets["main"].runtimeClasspath
-    workingDir = runDir.asFile
-
+    workingDir = project.layout.projectDirectory.dir("run").asFile
     dependsOn("extractNatives")
 }
 
 tasks.register<JavaExec>("runServer") {
-    val runDir = project.layout.projectDirectory.dir("run")
-    val nativesDir = runDir.dir("natives")
-
-    jvmArgs = listOf(
-        "-Dorg.lwjgl.librarypath=${nativesDir.asFile.absolutePath}"
-    )
-
     mainClass.set("server.Server")
     classpath = sourceSets["main"].runtimeClasspath
-    workingDir = runDir.asFile
-
-    dependsOn("extractNatives")
+    workingDir = project.layout.projectDirectory.dir("run").asFile
 }
 
 task("extractNatives", Copy::class) {
     dependsOn(natives)
     from(natives.map { zipTree(it) })
-    into("${project.projectDir.toPath()}\\run\\natives")
+    into(project.layout.projectDirectory.dir("run/natives").asFile)
+}
+
+tasks.register<Jar>("buildServer") {
+    group = "build"
+    dependsOn("classes", "generateGitHash")
+    archiveBaseName.set("rd-server")
+    archiveVersion.set(version.toString())
+    archiveClassifier.set("")
+    destinationDirectory.set(project.layout.projectDirectory.dir("build/dist").asFile)
+    manifest {
+        attributes("Main-Class" to "server.Server", "Implementation-Version" to gitCommitHash)
+    }
+    from(sourceSets["main"].output)
+    from(
+        configurations.runtimeClasspath.get()
+            .filter { !it.name.contains("lwjgl") }
+            .map { if (it.isDirectory) it else zipTree(it) }
+    ) {
+        exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF")
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register<Jar>("buildClient") {
+    group = "build"
+    dependsOn("classes", "generateGitHash")
+    archiveBaseName.set("rd-client")
+    archiveVersion.set(version.toString())
+    archiveClassifier.set("")
+    destinationDirectory.set(project.layout.projectDirectory.dir("build/dist").asFile)
+    manifest {
+        attributes("Main-Class" to "client.Launcher", "Implementation-Version" to gitCommitHash)
+    }
+    from(sourceSets["main"].output)
+    from(
+        configurations.runtimeClasspath.get()
+            .filter { !it.name.contains("lwjgl-platform") }
+            .map { if (it.isDirectory) it else zipTree(it) }
+    ) {
+        exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/MANIFEST.MF")
+    }
+    from(natives.map { zipTree(it) }) {
+        into("natives")
+        include("*.dll", "*.so", "*.jnilib", "*.dylib")
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 val gitCommitHash: String by extra {
     val (hashOutput, _) = "git rev-parse HEAD".runCommand()
     val hash = hashOutput.trim().take(10)
-
     val isDirty = listOf(
         "git diff --quiet --ignore-submodules".runCommand(),
         "git diff --cached --quiet".runCommand()
     ).any { (_, code) -> code != 0 }
-
     if (isDirty) "$hash+" else hash
 }
 
@@ -83,7 +111,6 @@ fun String.runCommand(): Pair<String, Int> {
         "" to -1
     }
 }
-
 
 tasks.register("generateGitHash") {
     doLast {
