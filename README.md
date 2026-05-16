@@ -32,4 +32,4 @@ Read the socket protocol [here](https://github.com/9aze/rd-multiplayer/blob/main
 - Chat with connection messages
 - Coordinate, FPS and Ping HUD
 - Player rendering
-- Server-side world/save loading
+- Server-side world saving/loading
