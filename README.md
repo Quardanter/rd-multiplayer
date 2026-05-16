@@ -18,7 +18,7 @@ Preview video as of <code>58a7142757+</code>:
 5. Running: `./gradlew runServer` and `./gradlew runClient`
 
 ### pre-built binaries
-1. Make sure you have Java 8 installed
+1. Make sure you have Java =< 8 installed
 2. Download the [latest release](https://github.com/9aze/rd-multiplayer/releases/latest/)
 3. Run the jars by either double-clicking them or `java -jar rd-*.jar`
 
