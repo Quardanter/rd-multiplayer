@@ -80,10 +80,7 @@ public class SocketClient implements Runnable {
                 switch (packetId) {
 
                     case Packets.CHUNK_DATA: {
-                        int cx    = in.readInt();
-                        int cz    = in.readInt();
-                        int depth = in.readInt();
-                        int len   = in.readInt();
+                        int cx = in.readInt(); int cz = in.readInt(); int depth = in.readInt(); int len = in.readInt();
                         byte[] data = new byte[len];
                         in.readFully(data);
                         Level level = Minecraft.mc.level;
@@ -105,15 +102,18 @@ public class SocketClient implements Runnable {
                         setLoading("Receiving level metadata...", Color.WHITE);
                         int w = in.readInt(), h = in.readInt(), d = in.readInt();
                         int len = in.readInt();
+
                         setLoading("Downloading world (" + len + " bytes)...", Color.WHITE);
                         byte[] blocks = new byte[len];
                         in.readFully(blocks);
+
                         setLoading("Applying world...", Color.WHITE);
                         Minecraft.mc.pendingWidth  = w;
                         Minecraft.mc.pendingHeight = h;
                         Minecraft.mc.pendingDepth  = d;
                         Minecraft.mc.pendingBlocks = blocks;
                         Minecraft.mc.levelUpdatePending = true;
+
                         setLoading("Level loaded successfully!", Color.GREEN);
                         break;
                     }
@@ -164,7 +164,7 @@ public class SocketClient implements Runnable {
                     }
 
                     case Packets.CONNECTION: {
-                        int    type  = in.readInt();
+                        int type  = in.readInt();
                         String uname = in.readUTF();
                         Minecraft.mc.chat.addConnectionMessage(uname, type);
                         if (type == 1) {
