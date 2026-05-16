@@ -3,15 +3,11 @@ The first version of Minecraft, but multi-player!
 
 Full credits to Notch and the decompile codebase at: [thecodeofnotch/rd-131122](https://github.com/thecodeofnotch/rd-132211).
 
-  Preview video as of <code>58a7142757+</code>:
-
-
-  <br>
-
-  <a href="https://www.youtube.com/watch?v=5qlTXX0Mn8U">
-    <img src="https://img.youtube.com/vi/5qlTXX0Mn8U/hqdefault.jpg" width="240">
-  </a>
-
+Preview video as of <code>58a7142757+</code>:
+<br>
+<a href="https://www.youtube.com/watch?v=5qlTXX0Mn8U">
+  <img src="https://img.youtube.com/vi/5qlTXX0Mn8U/hqdefault.jpg" width="240">
+</a>
 
 ## installation
 
@@ -21,4 +17,15 @@ Full credits to Notch and the decompile codebase at: [thecodeofnotch/rd-131122](
 4. Run `./gradlew runServer` and in another terminal `./gradlew runClient`
 
 ### pre-built binaries
-*coming soon*
+1. Make sure you have Java 8 installed
+2. Download the [latest release](https://github.com/9aze/rd-multiplayer/releases/latest/)
+3. Run the jars either by double-clicking them or `java -jar rd-*.jar`
+
+## features
+- Breaking/Placing blocks
+- Moving around and jumping
+- Multiplayer (obviously)
+- Chat with connection messages
+- Coordinate, FPS and Ping HUD
+- Player rendering
+- Server-side world/save loading
