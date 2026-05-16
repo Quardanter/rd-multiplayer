@@ -5,10 +5,10 @@ public class AntiCheat {
     private static final double MAX_REACH = 10.0;
     private static final double EYE_HEIGHT = 1.6;
 
-    private static final double PLACE_RATE = 5.0 / 1_000.0;
+    private static final double PLACE_RATE = 10.0 / 1_000.0;
     private static final double PLACE_BURST = 5.0;
 
-    private static final double BREAK_RATE = 5.0 / 1_000.0;
+    private static final double BREAK_RATE = 10.0 / 1_000.0;
     private static final double BREAK_BURST = 5.0;
 
     private static final double MOVE_RATE = 20.0 / 1_000.0;
