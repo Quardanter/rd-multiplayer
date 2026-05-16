@@ -230,7 +230,7 @@ public class ClientHandler {
 
         for (int y = depth - 1; y >= 0; y--) {
             if (chunk.getBlock(lx, y, lz) != 0) {
-                return y;
+                return y+1;
             }
         }
         return -1;
