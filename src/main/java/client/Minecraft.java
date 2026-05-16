@@ -85,6 +85,17 @@ public class Minecraft implements Runnable {
     public int height = 720;
     private boolean fullscreen = false;
 
+    public static final int CAMERA_FIRST  = 0;
+    public static final int CAMERA_THIRD  = 1;
+    public static final int CAMERA_SECOND = 2;
+    private static final float CAMERA_DISTANCE = 4.0f;
+
+    public int cameraMode = CAMERA_FIRST;
+
+    public void cycleCamera() {
+        cameraMode = (cameraMode + 1) % 3;
+    }
+
     private final IntBuffer viewportBuffer = BufferUtils.createIntBuffer(16);
     private final IntBuffer selectBuffer = BufferUtils.createIntBuffer(2000);
     private HitResult hitResult;
@@ -257,8 +268,21 @@ public class Minecraft implements Runnable {
 
     private void moveCameraToPlayer(float pt) {
         glTranslatef(0f, 0f, -0.3f);
+
+        // Pull the camera back along the player's view in 3rd/2nd person.
+        if (cameraMode != CAMERA_FIRST) {
+            glTranslatef(0f, 0f, -CAMERA_DISTANCE);
+        }
+
         glRotatef(player.xRotation, 1f, 0f, 0f);
         glRotatef(player.yRotation, 0f, 1f, 0f);
+
+        // 2nd person: flip the world 180° around the player's vertical axis so
+        // the camera ends up in front of the player, looking back at them.
+        if (cameraMode == CAMERA_SECOND) {
+            glRotatef(180f, 0f, 1f, 0f);
+        }
+
         double x = player.prevX + (player.x - player.prevX) * pt;
         double y = player.prevY + (player.y - player.prevY) * pt;
         double z = player.prevZ + (player.z - player.prevZ) * pt;
@@ -285,7 +309,14 @@ public class Minecraft implements Runnable {
         gluPerspective(70f, width / (float) height, 0.05f, 1000f);
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
+
+        // Always pick from the player's actual eye, never from the offset 3rd/2nd
+        // person camera — otherwise you'd target blocks based on where the camera
+        // is, not where the player would reach.
+        int saved = cameraMode;
+        cameraMode = CAMERA_FIRST;
         moveCameraToPlayer(pt);
+        cameraMode = saved;
     }
 
     private void pick(float pt) {
@@ -373,6 +404,9 @@ public class Minecraft implements Runnable {
             glEnable(GL_FOG);
             levelRenderer.render(1);
             levelRenderer.renderPlayers(playerManager);
+            if (cameraMode != CAMERA_FIRST) {
+                levelRenderer.renderSelf(player);
+            }
             levelRenderer.renderNameTags(playerManager, player, font);
             glDisable(GL_TEXTURE_2D);
 

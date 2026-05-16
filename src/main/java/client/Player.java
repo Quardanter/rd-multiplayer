@@ -116,6 +116,10 @@ public class Player {
                     return;
                 }
 
+                if (key == Keyboard.KEY_F5 && !Minecraft.mc.chat.toggled) {
+                    Minecraft.mc.cycleCamera();
+                }
+
                 if (key == Keyboard.KEY_SPACE && !Minecraft.mc.chat.toggled) {
                     long now = System.currentTimeMillis();
 

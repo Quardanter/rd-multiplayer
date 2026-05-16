@@ -224,6 +224,36 @@ public class LevelRenderer implements LevelListener {
         glDisable(GL_BLEND); glEnable(GL_CULL_FACE); glEnable(GL_FOG); glEnable(GL_TEXTURE_2D);
     }
 
+    /** Animation state for the local player, kept across frames. */
+    private final client.Position selfPosition = new client.Position(0, 0, 0, 0f, 0);
+
+    /**
+     * Render the local player. Called by {@link client.Minecraft} only when the
+     * camera is in 3rd / 2nd person — in 1st person the model would clip into
+     * the camera.
+     */
+    public void renderSelf(Player p) {
+        // Mirror live player data into the persistent animation Position.
+        selfPosition.x = p.x;
+        selfPosition.y = p.y;
+        selfPosition.z = p.z;
+        selfPosition.yaw = p.yRotation;
+
+        long now = System.currentTimeMillis();
+        updateAnimation(selfPosition, now);
+
+        glDisable(GL_TEXTURE_2D); glDisable(GL_CULL_FACE); glDisable(GL_FOG);
+        glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glPushMatrix();
+        glTranslatef((float) p.x, (float) p.y - 1.62f, (float) p.z);
+        glRotatef(-p.yRotation, 0f, 1f, 0f);
+        renderPlayerModel(selfPosition.limbSwing, selfPosition.limbSwingAmount);
+        glPopMatrix();
+
+        glDisable(GL_BLEND); glEnable(GL_CULL_FACE); glEnable(GL_FOG); glEnable(GL_TEXTURE_2D);
+    }
+
     /** Walk-cycle constants — tune to taste. */
     private static final float SWING_SPEED    = 0.33f;    // phase advance per frame at full motion
     private static final float SWING_AMP      = 0.9f;     // peak swing in radians (~52°)
