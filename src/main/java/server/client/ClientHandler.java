@@ -128,6 +128,18 @@ public class ClientHandler {
 
                         if (!AntiCheat.checkBlock(client, x, y, z, true, System.currentTimeMillis())) break;
 
+                        int existingId = Server.level.getTile(x, y, z) & 0xFF;
+                        if (existingId != 0) {
+                            final int fx = x, fy = y, fz = z, fid = existingId;
+                            final Client c = client;
+                            c.send(o -> {
+                                o.writeByte(Packets.BLOCK_PLACE);
+                                o.writeInt(fx); o.writeInt(fy); o.writeInt(fz);
+                                o.writeByte(fid);
+                            });
+                            break;
+                        }
+
                         Server.level.setTile(x, y, z, blockId);
                         Broadcaster.broadcastBlock(Packets.BLOCK_PLACE, x, y, z, blockId);
 
