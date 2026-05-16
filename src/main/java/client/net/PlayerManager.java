@@ -12,7 +12,7 @@ public class PlayerManager {
     public void updatePlayer(String username, double x, double y, double z, float yaw, int ping) {
         if (players.containsKey(username)) {
             Position p = players.get(username);
-            p.x = x; p.y = y; p.z = z; p.yaw = yaw;
+            p.x = x; p.y = y; p.z = z; p.yaw = yaw; p.ping = ping;
         } else {
             players.put(username, new Position(x, y, z, yaw, ping));
         }
