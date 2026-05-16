@@ -12,7 +12,6 @@ public class Client {
     private final DataOutputStream out;
     private final Object writeLock = new Object();
 
-    // Asynchronous queue and thread per player for outbound traffic
     private final BlockingQueue<PacketWriter> sendQueue = new LinkedBlockingQueue<>();
     private final Thread sendThread;
 
