@@ -11,6 +11,7 @@ public class Client {
     private final Object writeLock = new Object();
 
     private double[] lastPos = null;
+    private long lastMoveTime = 0;
     private double placeTokens = 0.0;
     private long lastPlaceTime = 0;
 
@@ -34,11 +35,14 @@ public class Client {
     public DataOutputStream getOut() { return out; }
 
     public double[] getLastPos() { return lastPos; }
-    public void setLastPos(double x, double y, double z) {
+    public long getLastMoveTime() { return lastMoveTime; }
+
+    public void setLastPos(double x, double y, double z, long time) {
         if (lastPos == null) lastPos = new double[3];
         lastPos[0] = x;
         lastPos[1] = y;
         lastPos[2] = z;
+        this.lastMoveTime = time;
     }
 
     public double getPlaceTokens() { return placeTokens; }

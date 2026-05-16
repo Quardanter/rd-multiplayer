@@ -116,7 +116,22 @@ public class ClientHandler {
                         double z = in.readDouble();
                         float yaw = in.readFloat();
                         int ping = in.readInt();
-                        client.setLastPos(x, y, z);
+
+                        long now = System.currentTimeMillis();
+                        if (!AntiCheat.checkMovement(client, x, y, z, now)) {
+                            double[] validPos = client.getLastPos();
+                            if (validPos != null) {
+                                final Client c = client;
+                                c.send(o -> {
+                                    o.writeByte(Packets.SET_POS);
+                                    o.writeDouble(validPos[0]);
+                                    o.writeDouble(validPos[1]);
+                                    o.writeDouble(validPos[2]);
+                                });
+                            }
+                            break;
+                        }
+
                         Broadcaster.broadcastPos(client, x, y, z, yaw, ping);
                         break;
                     }

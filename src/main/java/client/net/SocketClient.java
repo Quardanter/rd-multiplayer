@@ -51,6 +51,16 @@ public class SocketClient implements Runnable {
 
                 switch (packetId) {
 
+                    case Packets.SET_POS: {
+                        double x = in.readDouble();
+                        double y = in.readDouble();
+                        double z = in.readDouble();
+                        if (Minecraft.mc.player != null) {
+                            Minecraft.mc.player.forcePosition(x, y, z);
+                        }
+                        break;
+                    }
+
                     case Packets.BLOCK_PLACE: {
                         int x = in.readInt();
                         int y = in.readInt();

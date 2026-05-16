@@ -23,6 +23,10 @@ public class Player {
 
     public AABB boundingBox;
 
+    private final Object posLock = new Object();
+    private boolean hasPendingReset = false;
+    private double resetX, resetY, resetZ;
+
     public Player(Level level) {
         this.level = level;
 
@@ -50,6 +54,15 @@ public class Player {
         setPosition(x, y, z);
     }
 
+    public void forcePosition(double targetX, double targetY, double targetZ) {
+        synchronized (posLock) {
+            this.resetX = targetX;
+            this.resetY = targetY;
+            this.resetZ = targetZ;
+            this.hasPendingReset = true;
+        }
+    }
+
     public void turn(float x, float y) {
         this.yRotation += x * 0.15F;
         this.xRotation -= y * 0.15F;
@@ -59,6 +72,24 @@ public class Player {
     }
 
     public void tick() throws IOException {
+        synchronized (posLock) {
+            if (hasPendingReset) {
+                this.x = resetX;
+                this.y = resetY;
+                this.z = resetZ;
+                this.prevX = resetX;
+                this.prevY = resetY;
+                this.prevZ = resetZ;
+                this.motionX = 0.0D;
+                this.motionY = 0.0D;
+                this.motionZ = 0.0D;
+
+                double minY = resetY - 1.62D;
+                this.boundingBox = new AABB(resetX - width, minY, resetZ - width, resetX + width, minY + (2.0F * this.height), resetZ + width);
+                this.hasPendingReset = false;
+            }
+        }
+
         this.prevX = this.x;
         this.prevY = this.y;
         this.prevZ = this.z;
@@ -116,10 +147,8 @@ public class Player {
             if (Minecraft.mc.socket.isConnected()) {
                 SocketClient.sendPos(Packets.POS, this.x, this.y, this.z, this.yRotation, (int) Minecraft.mc.rtt);
             }
-
         }
     }
-
 
     public void move(double x, double y, double z) {
         double prevX = x;
@@ -153,7 +182,6 @@ public class Player {
         this.y = this.boundingBox.minY + 1.62D;
         this.z = (this.boundingBox.minZ + this.boundingBox.maxZ) / 2.0D;
     }
-
 
     private void moveRelative(float x, float z, float speed) {
         float distance = x * x + z * z;

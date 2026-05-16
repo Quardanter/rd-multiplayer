@@ -12,4 +12,5 @@ public final class Packets {
     public static final byte KEEPALIVE     = 9;
     public static final byte CONNECTION    = 10;
     public static final byte POS           = 11;
+    public static final byte SET_POS       = 12;
 }
