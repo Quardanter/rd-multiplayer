@@ -9,20 +9,21 @@ Preview video as of <code>58a7142757+</code>:
   <img src="https://img.youtube.com/vi/5qlTXX0Mn8U/hqdefault.jpg" width="240">
 </a>
 
-## protocl
-Read the socket protocol [here](https://github.com/9aze/rd-multiplayer/blob/main/PROTOCOL.md).
-
 ## installation
 
 ### run/build from source
 1. Make sure you have Java 8 installed
 2. Clone this repository
-4. Run `./gradlew runServer` and in another terminal `./gradlew runClient`
+3. Building: `./gradlew buildServer`and `./gradlew buildClient`
+5. Running: `./gradlew runServer` and `./gradlew runClient`
 
 ### pre-built binaries
 1. Make sure you have Java 8 installed
 2. Download the [latest release](https://github.com/9aze/rd-multiplayer/releases/latest/)
-3. Run the jars either by double-clicking them or `java -jar rd-*.jar`
+3. Run the jars by either double-clicking them or `java -jar rd-*.jar`
+
+## protocol
+Read the socket protocol [here](https://github.com/9aze/rd-multiplayer/blob/main/PROTOCOL.md).
 
 ## features
 - Breaking/Placing blocks
