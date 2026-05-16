@@ -49,7 +49,7 @@ public class Chunk {
                     int blockId = this.level.getRawBlock(x, y, z) & 0xFF;
                     if (blockId == 0) continue;
 
-                    Tile tile = Tile.fromId(blockId);
+                    Tile tile = Blocks.get(blockId);
                     if (tile == null) continue;
 
                     tile.render(TESSELLATOR, this.level, layer, x, y, z);

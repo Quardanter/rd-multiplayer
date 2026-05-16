@@ -1,6 +1,7 @@
 package client.hud;
 
 import client.*;
+import client.level.Blocks;
 import client.level.Tile;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -114,16 +115,10 @@ public class Info {
             font.drawString(String.valueOf(i + 1), sx + 3, sy + 3, true);
 
             if (i == selected) {
-                Tile t = Tile.fromId(BLOCKS[i]);
+                Tile t = Blocks.get(BLOCKS[i]);
 
                 if (t != null)
-                    font.drawString(
-                            t.name,
-                            sx + (SLOT - font.getStringWidth(t.name)) / 2,
-                            y - font.getStringHeight() - 3,
-                            Color.WHITE,
-                            true
-                    );
+                    font.drawString(t.name, sx + (SLOT - font.getStringWidth(t.name)) / 2, y - font.getStringHeight() - 3, Color.WHITE, true);
             }
 
             glDisable(GL_TEXTURE_2D);

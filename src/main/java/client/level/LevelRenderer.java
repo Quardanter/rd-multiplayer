@@ -168,7 +168,7 @@ public class LevelRenderer implements LevelListener {
                     glPushName(z);
                     if (level.isSolidTile(x, y, z)) {
                         int blockId = level.getRawBlock(x, y, z) & 0xFF;
-                        Tile tile = Tile.fromId(blockId);
+                        Tile tile = Blocks.get(blockId);
                         if (tile != null) {
                             glPushName(0);
                             for (int face = 0; face < 6; face++) {
@@ -191,7 +191,7 @@ public class LevelRenderer implements LevelListener {
 
     public void renderHit(HitResult hitResult) {
         int blockId = level.getRawBlock(hitResult.x, hitResult.y, hitResult.z) & 0xFF;
-        Tile tile = Tile.fromId(blockId);
+        Tile tile = Blocks.get(blockId);
         if (tile == null) return;
 
         glEnable(GL_BLEND);
