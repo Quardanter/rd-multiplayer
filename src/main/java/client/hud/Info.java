@@ -108,18 +108,12 @@ public class Info {
                 outline(sx - 2, sy - 2, sx + SLOT + 2, sy + SLOT + 2, 2);
             }
 
-            float[] c = color(BLOCKS[i]);
-
             int iconX0 = sx + 5, iconY0 = sy + 5;
             int iconX1 = sx + SLOT - 5, iconY1 = sy + SLOT - 5;
 
-            if (BLOCKS[i] == Blocks.TNT_ID) {
-                drawBlockSideIcon(Blocks.get(Blocks.TNT_ID), iconX0, iconY0, iconX1, iconY1);
-                glDisable(GL_TEXTURE_2D);
-            } else {
-                glColor4f(c[0], c[1], c[2], 1);
-                rect(iconX0, iconY0, iconX1, iconY1);
-            }
+            assert Blocks.get(BLOCKS[i]) != null;
+            drawBlockSideIcon(Blocks.get(Blocks.get(BLOCKS[i]).id), iconX0, iconY0, iconX1, iconY1);
+            glDisable(GL_TEXTURE_2D);
 
             glEnable(GL_TEXTURE_2D);
 
@@ -165,20 +159,6 @@ public class Info {
 
             y += 20;
         }
-    }
-
-    private float[] color(int id) {
-        switch (id) {
-            case 1: return new float[]{0.40f,0.75f,0.30f};
-            case 2: return new float[]{0.55f,0.55f,0.55f};
-            case 3: return new float[]{0.60f,0.40f,0.20f};
-            case 4: return new float[]{0.10f,0.10f,0.10f};
-            case 5: return new float[]{0.90f,0.85f,0.55f};
-            case 6: return new float[]{0.70f,0.35f,0.25f};
-            case 7: return new float[]{0.85f,0.20f,0.15f};
-        }
-
-        return new float[]{1,0,1};
     }
 
     private void rect(int x0, int y0, int x1, int y1) {

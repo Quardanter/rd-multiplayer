@@ -10,8 +10,6 @@ public final class Blocks {
     public static final Tile SAND = new Tile(5, "Sand");
     public static final Tile BRICKS = new Tile(6, "Bricks");
     public static final Tile TNT = new Tile(7, "TNT", FaceTextures.column(8, 6, 7));
-    
-    public static final int TNT_ID = 7;
 
     //these mfs have to be in order!!
     private static final Tile[] TILES = { AIR, GRASS, COBBLE, DIRT, OBSIDIAN, SAND, BRICKS, TNT };
