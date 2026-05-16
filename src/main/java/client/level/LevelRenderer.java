@@ -229,6 +229,26 @@ public class LevelRenderer implements LevelListener {
         renderBox(-0.25f, 0.00f, -0.125f, 0.00f, 0.50f,  0.125f, 0.15f, 0.25f, 0.55f);
         renderBox( 0.25f, 0.50f, -0.125f, 0.50f, 1.25f,  0.125f, 0.85f, 0.65f, 0.50f);
         renderBox(-0.50f, 0.50f, -0.125f,-0.25f, 1.25f,  0.125f, 0.85f, 0.65f, 0.50f);
+        renderPlayerFace();
+    }
+
+    private void renderPlayerFace() {
+        float z = -0.251f;
+
+        renderFaceQuad(-0.15f, 1.62f, -0.03f, 1.55f, z,  1.0f, 1.0f, 1.0f);
+        renderFaceQuad( 0.03f, 1.62f,  0.15f, 1.55f, z,  1.0f, 1.0f, 1.0f);
+        renderFaceQuad(-0.13f, 1.60f, -0.07f, 1.56f, z,  0.08f, 0.08f, 0.08f);
+        renderFaceQuad( 0.07f, 1.60f,  0.13f, 1.56f, z,  0.08f, 0.08f, 0.08f);
+        renderFaceQuad(-0.10f, 1.37f,  0.10f, 1.34f, z,  0.25f, 0.08f, 0.08f);
+    }
+
+    private void renderFaceQuad(float x0, float y0, float x1, float y1, float z,
+                                float r, float g, float b) {
+        tessellator.color(r, g, b);
+        tessellator.vertex(x0, y0, z);
+        tessellator.vertex(x1, y0, z);
+        tessellator.vertex(x1, y1, z);
+        tessellator.vertex(x0, y1, z);
     }
 
     private void renderBox(float x0, float y0, float z0, float x1, float y1, float z1,
