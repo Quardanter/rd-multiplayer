@@ -46,6 +46,7 @@ public class Broadcaster {
     }
 
     public static void broadcastChat(String author, String message) {
+        System.out.printf("<%s> %s", author, message);
         for (Client client : Server.clients) {
             client.send(o -> {
                 o.writeByte(Packets.CHAT);
