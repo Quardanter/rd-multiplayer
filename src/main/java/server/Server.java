@@ -4,6 +4,8 @@ import server.client.Client;
 import server.client.ClientHandler;
 import server.client.TimeoutHandler;
 import server.level.Level;
+import server.net.Broadcaster;
+
 import java.util.*;
 import java.io.*;
 import java.net.ServerSocket;
@@ -52,8 +54,36 @@ public class Server {
 
         ServerSocket serverSocket = new ServerSocket(PORT);
         System.out.println("Server started on port " + PORT);
-
         TimeoutHandler.start();
+
+        Scanner scanner = new Scanner(System.in);
+        Thread t = new Thread(() -> {
+            while (scanner.hasNextLine()) {
+                String command = scanner.nextLine();
+                String[] parts = command.split(" ", 2);
+
+                switch (parts[0]) {
+                    case "kick":
+                        String username = parts[1];
+                        Optional<Client> found = clients.stream()
+                                .filter(c -> c.getUsername().equals(username))
+                                .findFirst();
+
+                        if (found.isPresent()) {
+                            found.get().close();
+                            System.out.println("Kicked " + username);
+                        } else {
+                            System.out.println("Player not found: " + username);
+                        }
+                        break;
+                    case "say":
+                        String message = parts[1];
+                        Broadcaster.broadcastChat("SERVER", message);
+                }
+            }
+        });
+        t.start();
+
 
         while (true) {
             Socket clientSocket = serverSocket.accept();

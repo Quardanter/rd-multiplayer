@@ -292,6 +292,7 @@ public class ClientHandler {
         if (username == null) return false;
         int len = username.length();
         if (len < MIN_USERNAME_LENGTH || len > MAX_USERNAME_LENGTH) return false;
+        if (username.equalsIgnoreCase("server")) return false;
         return username.matches("[A-Za-z0-9_]+");
     }
 
