@@ -162,7 +162,7 @@ public class Player {
         } else {
             if ((Keyboard.isKeyDown(Keyboard.KEY_SPACE)
                     || Keyboard.isKeyDown(Keyboard.KEY_LWIN))
-                    && this.onGround) {
+                    && this.onGround && !Minecraft.mc.chat.toggled) {
                 this.motionY = 0.12F;
             }
 
