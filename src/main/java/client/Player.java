@@ -51,10 +51,16 @@ public class Player {
     }
 
     private void resetPosition() {
-        float x = 128.0F;
-        float y = (float) (this.level.depth + 3);
-        float z = 128.0F;
-
+        float x, y, z;
+        if (Minecraft.mc != null && Minecraft.mc.spawnReceived) {
+            x = (float) Minecraft.mc.spawnX;
+            y = (float) Minecraft.mc.spawnY;
+            z = (float) Minecraft.mc.spawnZ;
+        } else {
+            x = 128.0F;
+            y = (float) (this.level.depth + 3);
+            z = 128.0F;
+        }
         setPosition(x, y, z);
     }
 

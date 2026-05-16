@@ -147,6 +147,10 @@ public class SocketClient implements Runnable {
 
                     case Packets.SET_POS: {
                         double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
+                        Minecraft.mc.spawnX = x;
+                        Minecraft.mc.spawnY = y;
+                        Minecraft.mc.spawnZ = z;
+                        Minecraft.mc.spawnReceived = true;
                         if (Minecraft.mc.player != null) Minecraft.mc.player.forcePosition(x, y, z);
                         break;
                     }

@@ -56,6 +56,9 @@ public class Minecraft implements Runnable {
 
     public volatile boolean levelReady = false;
 
+    public volatile double spawnX = 128.0, spawnY = 67.0, spawnZ = 128.0;
+    public volatile boolean spawnReceived = false;
+
     public int pendingWidth = -1;
     public int pendingHeight = -1;
     public int pendingDepth = -1;
