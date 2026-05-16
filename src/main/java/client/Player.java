@@ -151,12 +151,12 @@ public class Player {
 
             moveRelative(strafe, forward, flySpeed);
 
-            if (Keyboard.isKeyDown(Keyboard.KEY_SPACE)) {
+            if (Keyboard.isKeyDown(Keyboard.KEY_SPACE) && !Minecraft.mc.chat.toggled) {
                 this.motionY += flySpeed;
             }
 
             if (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT)
-                    || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
+                    || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT) && !Minecraft.mc.chat.toggled) {
                 this.motionY -= flySpeed;
             }
 

@@ -202,6 +202,7 @@ public class Minecraft implements Runnable {
     }
 
     private void tick() throws IOException {
+        info.tickKeys();
         info.tickScroll();
         int[] update;
         while ((update = SocketClient.pendingBlocks.poll()) != null) {

@@ -17,12 +17,31 @@ public class Info {
     private final FontRenderer fontRenderer;
 
     private static final int[] HOTBAR_IDS = { 1, 2, 3, 4, 5, 6 };
+    private static final int[] HOTBAR_KEYS = {
+            Keyboard.KEY_1,
+            Keyboard.KEY_2,
+            Keyboard.KEY_3,
+            Keyboard.KEY_4,
+            Keyboard.KEY_5,
+            Keyboard.KEY_6
+    };
+
     private int selectedSlot = 0;
 
     public void tickScroll() {
         int wheel = Mouse.getDWheel();
         if (wheel < 0) selectedSlot = (selectedSlot + 1) % HOTBAR_IDS.length;
         else if (wheel > 0) selectedSlot = (selectedSlot - 1 + HOTBAR_IDS.length) % HOTBAR_IDS.length;
+    }
+
+
+    public void tickKeys() {
+        for (int i = 0; i < HOTBAR_KEYS.length; i++) {
+            if (Keyboard.isKeyDown(HOTBAR_KEYS[i])) {
+                selectedSlot = i;
+                break;
+            }
+        }
     }
 
     public int getSelectedBlockId() {
@@ -38,6 +57,8 @@ public class Info {
     }
 
     public void render(int w, int h) {
+
+
         glMatrixMode(GL_PROJECTION);
         glPushMatrix(); glLoadIdentity();
         glOrtho(0, w, h, 0, -1, 1);
