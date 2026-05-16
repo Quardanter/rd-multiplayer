@@ -132,7 +132,7 @@ public class Chat {
 
             case 14:
                 long now = System.currentTimeMillis();
-                if (now - lastBackspaceTime > backspaceDelay) {
+                if (now - lastBackspaceTime > backspaceDelay && !chatInput.isEmpty()) {
                     chatInput = chatInput.substring(0, chatInput.length() - 1);
                     lastBackspaceTime = now;
                 }
