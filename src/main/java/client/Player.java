@@ -27,6 +27,10 @@ public class Player {
     private boolean hasPendingReset = false;
     private double resetX, resetY, resetZ;
 
+    private boolean flying = false;
+    private long lastSpacePress = 0L;
+    private static final long DOUBLE_SPACE_TIME = 300L;
+
     public Player(Level level) {
         this.level = level;
 
@@ -96,7 +100,6 @@ public class Player {
 
         float forward = 0.0F;
         float strafe = 0.0F;
-        float vertical = 0.0F;
 
         while (Keyboard.next()) {
             if (Keyboard.getEventKeyState()) {
@@ -105,6 +108,20 @@ public class Player {
                 if (key == Keyboard.KEY_T && !Minecraft.mc.chat.toggled) {
                     Minecraft.mc.chat.setToggled(true);
                     return;
+                }
+
+                if (key == Keyboard.KEY_SPACE && !Minecraft.mc.chat.toggled) {
+                    long now = System.currentTimeMillis();
+
+                    if (now - lastSpacePress <= DOUBLE_SPACE_TIME) {
+                        flying = !flying;
+
+                        this.motionX = 0.0D;
+                        this.motionY = 0.0D;
+                        this.motionZ = 0.0D;
+                    }
+
+                    lastSpacePress = now;
                 }
 
                 if (Minecraft.mc.chat.toggled) {
@@ -119,28 +136,55 @@ public class Player {
             if (Keyboard.isKeyDown(Keyboard.KEY_S) || Keyboard.isKeyDown(Keyboard.KEY_DOWN)) forward++;
             if (Keyboard.isKeyDown(Keyboard.KEY_A) || Keyboard.isKeyDown(Keyboard.KEY_LEFT)) strafe--;
             if (Keyboard.isKeyDown(Keyboard.KEY_D) || Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) strafe++;
-
-            if ((Keyboard.isKeyDown(Keyboard.KEY_SPACE) || Keyboard.isKeyDown(Keyboard.KEY_LWIN)) && this.onGround) {
-                this.motionY = 0.12F;
-            }
         }
 
-        boolean sprinting = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
-        float speed = sprinting ? 0.08F : 0.04F;
+        if (flying) {
+            float flySpeed = 0.12F;
 
-        moveRelative(strafe, forward, this.onGround ? speed : 0.01F);
+            this.motionY = 0.0D;
 
-        this.motionY -= 0.005D;
+            moveRelative(strafe, forward, flySpeed);
 
-        move(this.motionX, this.motionY, this.motionZ);
+            if (Keyboard.isKeyDown(Keyboard.KEY_SPACE)) {
+                this.motionY += flySpeed;
+            }
 
-        this.motionX *= 0.91F;
-        this.motionY *= 0.98F;
-        this.motionZ *= 0.91F;
+            if (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT)
+                    || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)) {
+                this.motionY -= flySpeed;
+            }
 
-        if (this.onGround) {
-            this.motionX *= 0.8F;
-            this.motionZ *= 0.8F;
+            move(this.motionX, this.motionY, this.motionZ);
+
+            this.motionX *= 0.6F;
+            this.motionY *= 0.6F;
+            this.motionZ *= 0.6F;
+        } else {
+            if ((Keyboard.isKeyDown(Keyboard.KEY_SPACE)
+                    || Keyboard.isKeyDown(Keyboard.KEY_LWIN))
+                    && this.onGround && !Minecraft.mc.chat.toggled) {
+                this.motionY = 0.12F;
+            }
+
+            boolean sprinting = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
+                    || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+
+            float speed = sprinting ? 0.08F : 0.04F;
+
+            moveRelative(strafe, forward, this.onGround ? speed : 0.01F);
+
+            this.motionY -= 0.005D;
+
+            move(this.motionX, this.motionY, this.motionZ);
+
+            this.motionX *= 0.91F;
+            this.motionY *= 0.98F;
+            this.motionZ *= 0.91F;
+
+            if (this.onGround) {
+                this.motionX *= 0.8F;
+                this.motionZ *= 0.8F;
+            }
         }
 
         if (this.x != this.prevX || this.y != this.prevY || this.z != this.prevZ) {
@@ -160,16 +204,19 @@ public class Player {
         for (AABB abb : aABBs) {
             y = abb.clipYCollide(this.boundingBox, y);
         }
+
         this.boundingBox.move(0.0F, y, 0.0F);
 
         for (AABB aABB : aABBs) {
             x = aABB.clipXCollide(this.boundingBox, x);
         }
+
         this.boundingBox.move(x, 0.0F, 0.0F);
 
         for (AABB aABB : aABBs) {
             z = aABB.clipZCollide(this.boundingBox, z);
         }
+
         this.boundingBox.move(0.0F, 0.0F, z);
 
         this.onGround = prevY != y && prevY < 0.0F;

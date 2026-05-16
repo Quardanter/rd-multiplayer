@@ -27,9 +27,11 @@ Read the socket protocol [here](https://github.com/9aze/rd-multiplayer/blob/main
 
 ## features
 - Breaking/Placing blocks
-- Moving around and jumping
+- Moving around, jumping and flying
 - Multiplayer (obviously)
 - Chat with connection messages
-- Coordinate, FPS and Ping HUD
+- Coordinates, Fps and Tablist HUD
 - Player rendering
 - Server-side world saving/loading
+- A server-side AntiCheat
+- *And more....*

@@ -53,13 +53,17 @@ public class Minecraft implements Runnable {
     public Level level;
     public LevelRenderer levelRenderer;
     public Player player;
- 
+
     public volatile boolean levelReady = false;
+
     public int pendingWidth = -1;
     public int pendingHeight = -1;
     public int pendingDepth = -1;
     public byte[] pendingBlocks = null;
     public volatile boolean levelUpdatePending = false;
+
+    public volatile String loadingText = "";
+    public volatile Color loadingColor = Color.WHITE;
 
     private FontRenderer font;
     private Font minecraftFont;
@@ -70,11 +74,11 @@ public class Minecraft implements Runnable {
 
     private Crosshair crosshair;
     private Info info;
-    public int fps;
+    public  int fps;
 
     private final FloatBuffer fogColor = BufferUtils.createFloatBuffer(4);
 
-    public final int width = 1280;
+    public final int width  = 1280;
     private final int height = 720;
 
     private final IntBuffer viewportBuffer = BufferUtils.createIntBuffer(16);
@@ -87,7 +91,6 @@ public class Minecraft implements Runnable {
         this.socket = new SocketClient(ip, port, username);
         this.socketThread  = new Thread(socket);
         this.playerManager = new PlayerManager();
-
         this.level = new Level(64);
     }
 
@@ -154,13 +157,12 @@ public class Minecraft implements Runnable {
         if (levelRenderer == null) {
             levelRenderer = new LevelRenderer(level);
             player = new Player(level);
-
             level.forEachLoadedChunk((cx, cz) -> levelRenderer.chunkLoaded(cx, cz));
         }
 
         keepAlive();
 
-        int frames = 0;
+        int  frames   = 0;
         long lastTime = System.currentTimeMillis();
 
         try {
@@ -184,7 +186,7 @@ public class Minecraft implements Runnable {
             destroy();
         }
     }
-
+  
     private void applyPendingLevel() {
         if (!levelUpdatePending) return;
         this.level = new Level(pendingDepth);
@@ -298,7 +300,7 @@ public class Minecraft implements Runnable {
                         if (hitResult.face == 5) x++;
 
                         float pMinX = (float)(player.x - player.width),  pMaxX = (float)(player.x + player.width);
-                        float pMinY = (float)(player.y - player.height),  pMaxY = (float)(player.y + player.height);
+                        float pMinY = (float)(player.y - player.height), pMaxY = (float)(player.y + player.height);
                         float pMinZ = (float)(player.z - player.width),  pMaxZ = (float)(player.z + player.width);
                         boolean intersects =
                                 pMaxX > x && pMinX < x+1 &&
@@ -339,6 +341,7 @@ public class Minecraft implements Runnable {
 
         Display.update();
     }
+
     private void keepAlive() {
         Thread t = new Thread(() -> {
             while (true) {
@@ -355,6 +358,7 @@ public class Minecraft implements Runnable {
         t.setDaemon(true);
         t.start();
     }
+
     private int loadingBackground = -1;
 
     private void renderLoadingScreen() {
@@ -376,17 +380,18 @@ public class Minecraft implements Runnable {
         glColor4f(1f, 1f, 1f, 1f);
         Textures.bind(loadingBackground);
         glBegin(GL_QUADS);
-        glTexCoord2f(0,0); glVertex2f(0,     0);
-        glTexCoord2f(1,0); glVertex2f(width, 0);
-        glTexCoord2f(1,1); glVertex2f(width, height);
-        glTexCoord2f(0,1); glVertex2f(0,     height);
+        glTexCoord2f(0, 0); glVertex2f(0,     0);
+        glTexCoord2f(1, 0); glVertex2f(width, 0);
+        glTexCoord2f(1, 1); glVertex2f(width, height);
+        glTexCoord2f(0, 1); glVertex2f(0,     height);
         glEnd();
 
-        String text = "Loading chunks...";
-        int tx = (width  / 2) - (font.getStringWidth(text)  / 2);
-        int ty = (height / 2) - (font.getStringHeight() / 2);
+        int textWidth  = font.getStringWidth(loadingText);
+        int textHeight = font.getStringHeight();
+        int tx = (width  / 2) - (textWidth  / 2);
+        int ty = (height / 2) - (textHeight / 2);
         glColor4f(1f, 1f, 1f, 1f);
-        font.drawString(text, tx, ty, true);
+        font.drawString(loadingText, tx, ty, loadingColor, true);
 
         glDisable(GL_BLEND); glEnable(GL_DEPTH_TEST); glEnable(GL_CULL_FACE);
         glPopMatrix();
@@ -395,8 +400,7 @@ public class Minecraft implements Runnable {
 
         Display.update();
     }
-
-
+  
     public PlayerManager getPlayerManager() { return playerManager; }
     public Level getLevel() { return level; }
 }
