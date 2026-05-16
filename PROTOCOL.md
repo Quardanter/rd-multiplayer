@@ -1,6 +1,6 @@
 
 # Protocol
-The main socket protocol. Provides more context than the [global/Packets.java](
+The main socket protocol. Provides more context than the [global/Packets.java](https://github.com/9aze/rd-multiplayer/blob/main/src/java/global/Packets.java/)
 
 | ID   | Name          | Direction | Payload                                                             | Notes                                                  |
 |------|---------------|-----------|---------------------------------------------------------------------|--------------------------------------------------------|
