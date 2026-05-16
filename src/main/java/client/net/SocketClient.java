@@ -1,6 +1,7 @@
 package client.net;
 
 import client.Minecraft;
+import client.level.Level;
 import global.Packets;
 
 import java.awt.*;
@@ -35,7 +36,6 @@ public class SocketClient implements Runnable {
     @Override
     public void run() {
         try {
-
             setLoading("Connecting to server...", Color.WHITE);
 
             socket = new Socket(host, port);
@@ -43,12 +43,7 @@ public class SocketClient implements Runnable {
             setLoading("Connected to server!", Color.WHITE);
 
             in  = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(
-                    new BufferedOutputStream(
-                            socket.getOutputStream(),
-                            8192
-                    )
-            );
+            out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 8192));
 
             setLoading("Creating network streams...", Color.WHITE);
 
@@ -64,21 +59,16 @@ public class SocketClient implements Runnable {
 
             if (response != Packets.AUTH_SUCCESS) {
                 System.err.println("Authentication failed!");
-
                 setLoading("Authentication failed!", Color.RED);
-
                 socket.close();
                 return;
             }
 
             System.out.println("Authenticated successfully as " + username);
-
             setLoading("Authentication successful!", Color.GREEN);
-
             authenticated = true;
 
             setLoading("Requesting level...", Color.WHITE);
-
             out.writeByte(Packets.REQUEST_LEVEL);
             out.flush();
 
@@ -89,40 +79,36 @@ public class SocketClient implements Runnable {
 
                 switch (packetId) {
 
-                    case Packets.SET_POS: {
-                        double x = in.readDouble();
-                        double y = in.readDouble();
-                        double z = in.readDouble();
 
-                        if (Minecraft.mc.player != null) {
-                            Minecraft.mc.player.forcePosition(x, y, z);
+                    case Packets.CHUNK_DATA: {
+                        int cx    = in.readInt();
+                        int cz    = in.readInt();
+                        int depth = in.readInt();
+                        int len   = in.readInt();
+                        byte[] data = new byte[len];
+                        in.readFully(data);
+
+                        Level level = Minecraft.mc.level;
+                        if (level != null) {
+                            level.loadChunk(cx, cz, depth, data);
+                            if (!Minecraft.mc.levelReady) {
+                                Minecraft.mc.levelReady = true;
+                            }
                         }
-
                         break;
                     }
 
-                    case Packets.BLOCK_PLACE: {
-                        int x = in.readInt();
-                        int y = in.readInt();
-                        int z = in.readInt();
-
-                        pendingBlocks.add(new int[]{x, y, z, 1});
-
-                        break;
-                    }
-
-                    case Packets.BLOCK_BREAK: {
-                        int x = in.readInt();
-                        int y = in.readInt();
-                        int z = in.readInt();
-
-                        pendingBlocks.add(new int[]{x, y, z, 0});
-
+                    case Packets.CHUNK_UNLOAD: {
+                        int cx = in.readInt();
+                        int cz = in.readInt();
+                        Level level = Minecraft.mc.level;
+                        if (level != null) {
+                            level.unloadChunk(cx, cz);
+                        }
                         break;
                     }
 
                     case Packets.LEVEL_DATA: {
-
                         setLoading("Receiving level metadata...", Color.WHITE);
 
                         int w   = in.readInt();
@@ -130,13 +116,9 @@ public class SocketClient implements Runnable {
                         int d   = in.readInt();
                         int len = in.readInt();
 
-                        setLoading(
-                                "Downloading world (" + len + " bytes)...",
-                                Color.WHITE
-                        );
+                        setLoading("Downloading world (" + len + " bytes)...", Color.WHITE);
 
                         byte[] blocks = new byte[len];
-
                         in.readFully(blocks);
 
                         setLoading("Applying world...", Color.WHITE);
@@ -148,48 +130,58 @@ public class SocketClient implements Runnable {
                         Minecraft.mc.levelUpdatePending = true;
 
                         setLoading("Level loaded successfully!", Color.GREEN);
+                        break;
+                    }
 
+                    case Packets.BLOCK_PLACE: {
+                        int x = in.readInt(), y = in.readInt(), z = in.readInt();
+                        pendingBlocks.add(new int[]{x, y, z, 1});
+                        break;
+                    }
+
+                    case Packets.BLOCK_BREAK: {
+                        int x = in.readInt(), y = in.readInt(), z = in.readInt();
+                        pendingBlocks.add(new int[]{x, y, z, 0});
+                        break;
+                    }
+
+                    case Packets.SET_POS: {
+                        double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
+                        if (Minecraft.mc.player != null) Minecraft.mc.player.forcePosition(x, y, z);
+                        break;
+                    }
+
+                    case Packets.POS: {
+                        String uname = in.readUTF();
+                        double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
+                        float  yaw  = in.readFloat();
+                        int    ping = in.readInt();
+                        Minecraft.mc.getPlayerManager().updatePlayer(uname, x, y, z, yaw, ping);
                         break;
                     }
 
                     case Packets.CHAT: {
                         String author  = in.readUTF();
                         String message = in.readUTF();
-
                         Minecraft.mc.chat.addMessage(author, message);
-
                         break;
                     }
 
                     case Packets.KEEPALIVE: {
                         long time = in.readLong();
-
                         Minecraft.mc.rtt = System.currentTimeMillis() - time;
-
                         break;
                     }
 
                     case Packets.CONNECTION: {
-                        int    type     = in.readInt();
-                        String uname    = in.readUTF();
+                        int    type  = in.readInt();
+                        String uname = in.readUTF();
                         Minecraft.mc.chat.addConnectionMessage(uname, type);
-
                         if (type == 1) {
                             Minecraft.mc.getPlayerManager().removePlayer(uname);
                         } else {
-                            Minecraft.mc.player.sendPosition();
+                            if (Minecraft.mc.player != null) Minecraft.mc.player.sendPosition();
                         }
-                        break;
-                    }
-
-                    case Packets.POS: {
-                        String uname = in.readUTF();
-                        double x     = in.readDouble();
-                        double y     = in.readDouble();
-                        double z     = in.readDouble();
-                        float  yaw   = in.readFloat();
-                        int    ping  = in.readInt();
-                        Minecraft.mc.getPlayerManager().updatePlayer(uname, x, y, z, yaw, ping);
                         break;
                     }
 
@@ -202,32 +194,24 @@ public class SocketClient implements Runnable {
 
         } catch (IOException e) {
             e.printStackTrace();
-
-            setLoading(
-                    "Connection error: " + e.getMessage(),
-                    Color.RED
-            );
+            setLoading("Connection error: " + e.getMessage(), Color.RED);
         }
     }
 
     public static void sendBlock(int packet, int x, int y, int z) throws IOException {
         synchronized (writeLock) {
             out.writeByte(packet);
-            out.writeInt(x);
-            out.writeInt(y);
-            out.writeInt(z);
+            out.writeInt(x); out.writeInt(y); out.writeInt(z);
             out.flush();
         }
     }
 
-    public static void sendPos(int packet, double x, double y, double z, float yaw, int ping) throws IOException {
+    public static void sendPos(int packet, double x, double y, double z, float yaw, int ping)
+            throws IOException {
         synchronized (writeLock) {
             out.writeByte(packet);
-            out.writeDouble(x);
-            out.writeDouble(y);
-            out.writeDouble(z);
-            out.writeFloat(yaw);
-            out.writeInt(ping);
+            out.writeDouble(x); out.writeDouble(y); out.writeDouble(z);
+            out.writeFloat(yaw); out.writeInt(ping);
             out.flush();
         }
     }
@@ -250,8 +234,6 @@ public class SocketClient implements Runnable {
     }
 
     public boolean isConnected() {
-        return socket != null
-                && socket.isConnected()
-                && !socket.isClosed();
+        return socket != null && socket.isConnected() && !socket.isClosed();
     }
 }

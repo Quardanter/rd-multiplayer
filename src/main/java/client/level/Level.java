@@ -2,172 +2,188 @@ package client.level;
 
 import client.phys.AABB;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.util.ArrayList;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Level {
 
-    public int width;
-    public int height;
+    public static final int CHUNK_SIZE = 16;
     public int depth;
 
-    private byte[] blocks;
-    private int[] lightDepths;
+    private final ConcurrentHashMap<Long, byte[]> chunks = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<Long, int[]> chunkLightDepths = new ConcurrentHashMap<>();
 
     private final ArrayList<LevelListener> levelListeners = new ArrayList<>();
 
-    public Level(int width, int height, int depth) {
-        this.width = width;
-        this.height = height;
+    public Level(int depth) {
         this.depth = depth;
-
-        this.blocks = new byte[width * height * depth];
-        this.lightDepths = new int[width * height];
-
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < depth; y++) {
-                for (int z = 0; z < height; z++) {
-                    int index = (y * this.height + z) * this.width + x;
-
-                    this.blocks[index] = (byte) ((y <= depth * 2 / 3) ? 1 : 0);
-                }
-            }
-        }
-
-        calcLightDepths(0, 0, width, height);
-
     }
 
-    public void loadLevel(int w, int h, int d, byte[] blocks) {
-        this.width = w;
-        this.height = h;
+    public void loadChunk(int cx, int cz, int chunkDepth, byte[] data) {
+        if (this.depth == 0) this.depth = chunkDepth;
+
+        chunks.put(chunkKey(cx, cz), data);
+
+        calcLightDepthsForChunk(cx, cz);
+
+        for (LevelListener l : levelListeners) {
+            l.lightColumnChanged(cx * CHUNK_SIZE, cz * CHUNK_SIZE, 0, depth);
+        }
+        for (LevelListener l : levelListeners) {
+            l.chunkLoaded(cx, cz);
+        }
+    }
+
+    public void unloadChunk(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        chunks.remove(key);
+        chunkLightDepths.remove(key);
+
+        for (LevelListener l : levelListeners) {
+            l.chunkUnloaded(cx, cz);
+        }
+    }
+
+    public void loadLevel(int w, int h, int d, byte[] flatBlocks) {
         this.depth = d;
-        this.blocks = blocks;
+        chunks.clear();
+        chunkLightDepths.clear();
 
-        this.lightDepths = new int[w * h];
+        int cntX = w / CHUNK_SIZE;
+        int cntZ = h / CHUNK_SIZE;
 
-        calcLightDepths(0, 0, w, h);
-        for (LevelListener levelListener : this.levelListeners) {
-            levelListener.allChanged();
-        }
-    }
-
-    private void calcLightDepths(int minX, int minZ, int maxX, int maxZ) {
-        for (int x = minX; x < minX + maxX; x++) {
-            for (int z = minZ; z < minZ + maxZ; z++) {
-
-                int prevDepth = this.lightDepths[x + z * this.width];
-
-                int depth = this.depth - 1;
-                while (depth > 0 && !isLightBlocker(x, depth, z)) {
-                    depth--;
-                }
-
-                this.lightDepths[x + z * this.width] = depth;
-
-                if (prevDepth != depth) {
-                    int minTileChangeY = Math.min(prevDepth, depth);
-                    int maxTileChangeY = Math.max(prevDepth, depth);
-
-                    for (LevelListener levelListener : this.levelListeners) {
-                        levelListener.lightColumnChanged(x, z, minTileChangeY, maxTileChangeY);
+        for (int cx = 0; cx < cntX; cx++) {
+            for (int cz = 0; cz < cntZ; cz++) {
+                byte[] chunkData = new byte[CHUNK_SIZE * CHUNK_SIZE * d];
+                for (int y = 0; y < d; y++) {
+                    for (int lz = 0; lz < CHUNK_SIZE; lz++) {
+                        for (int lx = 0; lx < CHUNK_SIZE; lx++) {
+                            int wx = cx * CHUNK_SIZE + lx;
+                            int wz = cz * CHUNK_SIZE + lz;
+                            int flatIdx  = (y * h + wz) * w + wx;
+                            int chunkIdx = (y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx;
+                            chunkData[chunkIdx] = flatBlocks[flatIdx];
+                        }
                     }
                 }
+                long key = chunkKey(cx, cz);
+                chunks.put(key, chunkData);
+                calcLightDepthsForChunk(cx, cz);
             }
         }
+
+        for (LevelListener l : levelListeners) l.allChanged();
+    }
+
+    private void calcLightDepthsForChunk(int cx, int cz) {
+        long key = chunkKey(cx, cz);
+        byte[] data = chunks.get(key);
+        if (data == null) return;
+
+        int[] ld = new int[CHUNK_SIZE * CHUNK_SIZE];
+        for (int lx = 0; lx < CHUNK_SIZE; lx++) {
+            for (int lz = 0; lz < CHUNK_SIZE; lz++) {
+                int d = this.depth - 1;
+                while (d > 0 && data[(d * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] == 0) {
+                    d--;
+                }
+                ld[lx + lz * CHUNK_SIZE] = d;
+            }
+        }
+        chunkLightDepths.put(key, ld);
+    }
+
+    private static long chunkKey(int cx, int cz) {
+        return ((long) cx << 32) | (cz & 0xFFFFFFFFL);
+    }
+
+    public byte getRawBlock(int x, int y, int z) {
+        if (y < 0 || y >= depth) return 0;
+        int cx = Math.floorDiv(x, CHUNK_SIZE);
+        int cz = Math.floorDiv(z, CHUNK_SIZE);
+        byte[] data = chunks.get(chunkKey(cx, cz));
+        if (data == null) return 0;
+        int lx = Math.floorMod(x, CHUNK_SIZE);
+        int lz = Math.floorMod(z, CHUNK_SIZE);
+        return data[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx];
     }
 
     public boolean isTile(int x, int y, int z) {
-        if (x < 0 || y < 0 || z < 0 || x >= this.width || y >= this.depth || z >= this.height) {
-            return false;
-        }
-
-        int index = (y * this.height + z) * this.width + x;
-
-        return this.blocks[index] != 0;
+        return getRawBlock(x, y, z) != 0;
     }
 
     public boolean isSolidTile(int x, int y, int z) {
         return isTile(x, y, z);
     }
 
-    public boolean isLightBlocker(final int x, final int y, final int z) {
-        return this.isSolidTile(x, y, z);
+    public boolean isLightBlocker(int x, int y, int z) {
+        return isSolidTile(x, y, z);
     }
 
     public float getBrightness(int x, int y, int z) {
-        float dark = 0.8F;
+        float dark  = 0.8F;
         float light = 1.0F;
-
-        if (x < 0 || y < 0 || z < 0 || x >= this.width || y >= this.depth || z >= this.height) {
-            return light;
-        }
-
-        if (y < this.lightDepths[x + z * this.width]) {
-            return dark;
-        }
-
+        if (y < 0 || y >= depth) return light;
+        int cx = Math.floorDiv(x, CHUNK_SIZE);
+        int cz = Math.floorDiv(z, CHUNK_SIZE);
+        int[] ld = chunkLightDepths.get(chunkKey(cx, cz));
+        if (ld == null) return light;
+        int lx = Math.floorMod(x, CHUNK_SIZE);
+        int lz = Math.floorMod(z, CHUNK_SIZE);
+        if (y < ld[lx + lz * CHUNK_SIZE]) return dark;
         return light;
     }
 
-
-    public ArrayList<AABB> getCubes(AABB boundingBox) {
-        ArrayList<AABB> boundingBoxList = new ArrayList<>();
-
-        int minX = (int) (Math.floor(boundingBox.minX) - 1);
-        int maxX = (int) (Math.ceil(boundingBox.maxX) + 1);
-        int minY = (int) (Math.floor(boundingBox.minY) - 1);
-        int maxY = (int) (Math.ceil(boundingBox.maxY) + 1);
-        int minZ = (int) (Math.floor(boundingBox.minZ) - 1);
-        int maxZ = (int) (Math.ceil(boundingBox.maxZ) + 1);
-
-        minX = Math.max(0, minX);
-        minY = Math.max(0, minY);
-        minZ = Math.max(0, minZ);
-
-        maxX = Math.min(this.width, maxX);
-        maxY = Math.min(this.depth, maxY);
-        maxZ = Math.min(this.height, maxZ);
-
-        for (int x = minX; x < maxX; x++) {
-            for (int y = minY; y < maxY; y++) {
-                for (int z = minZ; z < maxZ; z++) {
-                    if (isSolidTile(x, y, z)) {
-                        boundingBoxList.add(new AABB(x, y, z, x + 1, y + 1, z + 1));
-                    }
-                }
-            }
-        }
-        return boundingBoxList;
-    }
-
-
     public void setTile(int x, int y, int z, int id) {
-        if (x < 0 || y < 0 || z < 0 || x >= this.width || y >= this.depth || z >= this.height) {
-            return;
-        }
+        if (y < 0 || y >= depth) return;
+        int cx = Math.floorDiv(x, CHUNK_SIZE);
+        int cz = Math.floorDiv(z, CHUNK_SIZE);
+        long key = chunkKey(cx, cz);
+        byte[] data = chunks.get(key);
+        if (data == null) return;
+        int lx = Math.floorMod(x, CHUNK_SIZE);
+        int lz = Math.floorMod(z, CHUNK_SIZE);
+        data[(y * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] = (byte) id;
 
-        this.blocks[(y * this.height + z) * this.width + x] = (byte) id;
-
-        this.calcLightDepths(x, z, 1, 1);
-
-        for (LevelListener levelListener : this.levelListeners) {
-            levelListener.tileChanged(x, y, z);
-        }
+        calcLightDepthsForChunk(cx, cz);
+        for (LevelListener l : levelListeners) l.tileChanged(x, y, z);
     }
 
-    public void addListener(LevelListener levelListener) {
-        this.levelListeners.add(levelListener);
+    public ArrayList<AABB> getCubes(AABB bb) {
+        ArrayList<AABB> list = new ArrayList<>();
+
+        int x0 = (int) Math.floor(bb.minX) - 1;
+        int x1 = (int) Math.ceil(bb.maxX) + 1;
+        int y0 = Math.max(0, (int) Math.floor(bb.minY) - 1);
+        int y1 = Math.min(depth, (int) Math.ceil(bb.maxY) + 1);
+        int z0 = (int) Math.floor(bb.minZ) - 1;
+        int z1 = (int) Math.ceil(bb.maxZ) + 1;
+
+        for (int x = x0; x < x1; x++)
+            for (int y = y0; y < y1; y++)
+                for (int z = z0; z < z1; z++)
+                    if (isSolidTile(x, y, z))
+                        list.add(new AABB(x, y, z, x+1, y+1, z+1));
+
+        return list;
     }
 
-    public byte[] getBlocks() {return this.blocks;}
+    public void addListener(LevelListener l) { levelListeners.add(l); }
 
-    public int getWidth() { return this.width; }
-    public int getHeight() { return this.height; }
-    public int getDepth() { return this.depth; }
+    public byte[] getBlocks() { return new byte[0]; }
+
+    public int getWidth() { return Integer.MAX_VALUE; }
+    public int getHeight() { return Integer.MAX_VALUE; }
+    public int getDepth() { return depth; }
+
+    public boolean hasAnyChunk() { return !chunks.isEmpty(); }
+
+    public void forEachLoadedChunk(java.util.function.BiConsumer<Integer, Integer> action) {
+        for (long key : chunks.keySet()) {
+            int cx = (int)(key >> 32);
+            int cz = (int)(key & 0xFFFFFFFFL);
+            action.accept(cx, cz);
+        }
+    }
 }

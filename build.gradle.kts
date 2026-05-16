@@ -26,6 +26,7 @@ tasks.register<JavaExec>("runClient") {
     mainClass.set("client.Launcher")
     classpath = sourceSets["main"].runtimeClasspath
     workingDir = project.layout.projectDirectory.dir("run").asFile
+    doFirst { workingDir.mkdirs() }
     dependsOn("extractNatives")
 }
 
@@ -33,10 +34,12 @@ tasks.register<JavaExec>("runServer") {
     mainClass.set("server.Server")
     classpath = sourceSets["main"].runtimeClasspath
     workingDir = project.layout.projectDirectory.dir("run").asFile
+    doFirst { workingDir.mkdirs() }
 }
 
 task("extractNatives", Copy::class) {
     dependsOn(natives)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(natives.map { zipTree(it) })
     into(project.layout.projectDirectory.dir("run/natives").asFile)
 }

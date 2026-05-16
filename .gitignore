@@ -129,3 +129,4 @@ src/test/
 .idea/intellij-javadocs-4.0.1.xml
 run
 server/level.dat
+bin/*

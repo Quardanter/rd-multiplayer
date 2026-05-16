@@ -51,9 +51,9 @@ public class Player {
     }
 
     private void resetPosition() {
-        float x = (float) Math.random() * this.level.width;
+        float x = 128.0F;
         float y = (float) (this.level.depth + 3);
-        float z = (float) Math.random() * this.level.height;
+        float z = 128.0F;
 
         setPosition(x, y, z);
     }

@@ -11,17 +11,18 @@ public class ClientHandler {
 
     private static final int MAX_USERNAME_LENGTH = 15;
     private static final int MIN_USERNAME_LENGTH = 3;
-    private static final int MAX_MESSAGE_LENGTH = 256;
+    private static final int MAX_MESSAGE_LENGTH  = 256;
 
     public static void handle(Socket socket) {
         DataInputStream in = null;
         DataOutputStream out = null;
         Client client = null;
 
+        ChunkTracker chunkTracker = new ChunkTracker();
+
         try {
             in  = new DataInputStream(socket.getInputStream());
             out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 8192));
-
             byte packetId = in.readByte();
             if (packetId != Packets.AUTH_REQUEST) {
                 reject(out, socket);
@@ -41,11 +42,7 @@ public class ClientHandler {
             String ip = socket.getInetAddress().getHostAddress();
 
             long connectionsFromIp = Server.clients.stream()
-                    .filter(c ->
-                            c.getSocket()
-                                    .getInetAddress()
-                                    .getHostAddress()
-                                    .equals(ip))
+                    .filter(c -> c.getSocket().getInetAddress().getHostAddress().equals(ip))
                     .count();
 
             if (connectionsFromIp >= Server.MAX_PER_IP) {
@@ -54,13 +51,9 @@ public class ClientHandler {
                 return;
             }
 
-            if (taken) {
-                reject(out, socket);
-                return;
-            }
-
-            if (Server.clients.size() >= Server.PLAYER_LIMIT) {
-                System.out.println("Rejected " + username + ": Player limit reached.");
+            if (taken || Server.clients.size() >= Server.PLAYER_LIMIT) {
+                if (taken) System.out.println("Rejected " + username + ": Username taken.");
+                else       System.out.println("Rejected " + username + ": Player limit reached.");
                 reject(out, socket);
                 return;
             }
@@ -75,15 +68,30 @@ public class ClientHandler {
             System.out.println("Client authenticated: " + username);
             Broadcaster.broadcastConnection(0, client);
 
+
             while (true) {
                 packetId = in.readByte();
 
                 switch (packetId) {
+                    case Packets.REQUEST_LEVEL: {
+                        double spawnX = 128.0;
+                        double spawnY = Server.level.getDepth() + 3.0;
+                        double spawnZ = 128.0;
+
+                        final Client c = client;
+
+                        c.send(o -> {
+                            o.writeByte(Packets.SET_POS);
+                            o.writeDouble(spawnX);
+                            o.writeDouble(spawnY);
+                            o.writeDouble(spawnZ);
+                        });
+                        c.send(o -> chunkTracker.update(spawnX, spawnZ, o));
+                        break;
+                    }
 
                     case Packets.BLOCK_BREAK: {
-                        int x = in.readInt();
-                        int y = in.readInt();
-                        int z = in.readInt();
+                        int x = in.readInt(), y = in.readInt(), z = in.readInt();
                         if (!AntiCheat.checkBlock(client, x, y, z, false, System.currentTimeMillis())) break;
                         Server.level.setTile(x, y, z, 0);
                         Broadcaster.broadcastBlock(Packets.BLOCK_BREAK, x, y, z);
@@ -91,45 +99,10 @@ public class ClientHandler {
                     }
 
                     case Packets.BLOCK_PLACE: {
-                        int x = in.readInt();
-                        int y = in.readInt();
-                        int z = in.readInt();
+                        int x = in.readInt(), y = in.readInt(), z = in.readInt();
                         if (!AntiCheat.checkBlock(client, x, y, z, true, System.currentTimeMillis())) break;
                         Server.level.setTile(x, y, z, 1);
                         Broadcaster.broadcastBlock(Packets.BLOCK_PLACE, x, y, z);
-                        break;
-                    }
-
-                    case Packets.KEEPALIVE: {
-                        Server.lastKeepAlive.put(client, System.currentTimeMillis());
-                        long clientTime = in.readLong();
-                        final Client c = client;
-                        c.send(o -> {
-                            o.writeByte(Packets.KEEPALIVE);
-                            o.writeLong(clientTime);
-                        });
-                        break;
-                    }
-
-                    case Packets.REQUEST_LEVEL: {
-                        final Client c = client;
-                        c.send(o -> Broadcaster.sendLevel(o));
-                        break;
-                    }
-
-                    case Packets.CHAT: {
-                        in.readUTF();
-                        String message = in.readUTF();
-
-                        message = message.trim();
-                        if (message.isEmpty() || message.length() > MAX_MESSAGE_LENGTH) break;
-
-                        message = message.replaceAll("[^\\x20-\\x7E]", "");
-                        if (message.isEmpty()) break;
-
-                        final String author = client.getUsername();
-                        final String payload = message;
-                        Broadcaster.broadcastChat(author, payload);
                         break;
                     }
 
@@ -155,7 +128,36 @@ public class ClientHandler {
                             break;
                         }
 
+                        final double fx = x, fz = z;
+                        final Client c = client;
+                        c.send(o -> chunkTracker.update(fx, fz, o));
+
                         Broadcaster.broadcastPos(client, x, y, z, yaw, ping);
+                        break;
+                    }
+
+                    case Packets.KEEPALIVE: {
+                        Server.lastKeepAlive.put(client, System.currentTimeMillis());
+                        long clientTime = in.readLong();
+                        final Client c = client;
+                        c.send(o -> {
+                            o.writeByte(Packets.KEEPALIVE);
+                            o.writeLong(clientTime);
+                        });
+                        break;
+                    }
+
+                    case Packets.CHAT: {
+                        in.readUTF();
+                        String message = in.readUTF().trim();
+
+                        if (message.isEmpty() || message.length() > MAX_MESSAGE_LENGTH) break;
+                        message = message.replaceAll("[^\\x20-\\x7E]", "");
+                        if (message.isEmpty()) break;
+
+                        final String author  = client.getUsername();
+                        final String payload = message;
+                        Broadcaster.broadcastChat(author, payload);
                         break;
                     }
 
@@ -166,11 +168,11 @@ public class ClientHandler {
             }
 
         } catch (IOException e) {
-            if (client != null) {
-                Broadcaster.broadcastConnection(1, client);
-            }
-            System.out.println("Client disconnected: " + (client != null ? client.getUsername() : "unknown"));
+            if (client != null) Broadcaster.broadcastConnection(1, client);
+            System.out.println("Client disconnected: "
+                    + (client != null ? client.getUsername() : "unknown"));
         } finally {
+            chunkTracker.clear();
             if (client != null) {
                 Server.clients.remove(client);
                 Server.lastKeepAlive.remove(client);

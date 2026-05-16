@@ -5,7 +5,6 @@ import client.phys.AABB;
 
 import static org.lwjgl.opengl.GL11.*;
 
-
 public class Chunk {
 
     private static final int TEXTURE = Textures.loadTexture("/client/textures/terrain.png", GL_NEAREST);
@@ -13,6 +12,8 @@ public class Chunk {
 
     public static int rebuiltThisFrame;
     public static int updates;
+
+    private static final int MAX_FIRST_BUILDS = 4;
 
     private final Level level;
 
@@ -23,29 +24,18 @@ public class Chunk {
     private final int lists;
     private boolean dirty = true;
 
+    private final boolean[] built = new boolean[2];
+
     public Chunk(Level level, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         this.level = level;
-
-        this.minX = minX;
-        this.minY = minY;
-        this.minZ = minZ;
-        this.maxX = maxX;
-        this.maxY = maxY;
-        this.maxZ = maxZ;
-
+        this.minX = minX; this.minY = minY; this.minZ = minZ;
+        this.maxX = maxX; this.maxY = maxY; this.maxZ = maxZ;
         this.lists = glGenLists(2);
-
         this.boundingBox = new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    public void rebuild(int layer) {
-        if (rebuiltThisFrame == 2) {
-            return;
-        }
-
+    private void compile(int layer) {
         updates++;
-        rebuiltThisFrame++;
-
         this.dirty = false;
 
         glNewList(this.lists + layer, GL_COMPILE);
@@ -58,12 +48,8 @@ public class Chunk {
                 for (int z = this.minZ; z < this.maxZ; ++z) {
                     if (this.level.isTile(x, y, z)) {
                         int id = (y != this.level.depth * 2 / 3) ? 1 : 0;
-
-                        if (id == 0) {
-                            Tile.grass.render(TESSELLATOR, this.level, layer, x, y, z);
-                        } else {
-                            Tile.rock.render(TESSELLATOR, this.level, layer, x, y, z);
-                        }
+                        if (id == 0) Tile.grass.render(TESSELLATOR, this.level, layer, x, y, z);
+                        else Tile.rock.render(TESSELLATOR, this.level, layer, x, y, z);
                     }
                 }
             }
@@ -72,47 +58,32 @@ public class Chunk {
         TESSELLATOR.flush();
         glDisable(GL_TEXTURE_2D);
         glEndList();
+        built[layer] = true;
     }
 
     public void render(int layer) {
         if (this.dirty) {
-            rebuild(0);
-            rebuild(1);
-        }
+            boolean firstTime = !built[0];
+            if (firstTime && rebuiltThisFrame >= MAX_FIRST_BUILDS) {
+                return;
+            }
 
-        glCallList(this.lists + layer);
-    }
+            compile(0);
+            compile(1);
 
-    public void rebuildNow(int layer) {
-        updates++;
-        this.dirty = false;
-
-        glNewList(this.lists + layer, GL_COMPILE);
-        glEnable(GL_TEXTURE_2D);
-        Textures.bind(TEXTURE);
-        TESSELLATOR.init();
-
-        for (int x = this.minX; x < this.maxX; ++x) {
-            for (int y = this.minY; y < this.maxY; ++y) {
-                for (int z = this.minZ; z < this.maxZ; ++z) {
-                    if (this.level.isTile(x, y, z)) {
-                        int id = (y != this.level.depth * 2 / 3) ? 1 : 0;
-                        if (id == 0) {
-                            Tile.grass.render(TESSELLATOR, this.level, layer, x, y, z);
-                        } else {
-                            Tile.rock.render(TESSELLATOR, this.level, layer, x, y, z);
-                        }
-                    }
-                }
+            if (firstTime) {
+                rebuiltThisFrame++;
             }
         }
 
-        TESSELLATOR.flush();
-        glDisable(GL_TEXTURE_2D);
-        glEndList();
+        if (built[layer]) {
+            glCallList(this.lists + layer);
+        }
     }
 
-    public void setDirty() {
-        this.dirty = true;
+    public void rebuildNow(int layer) {
+        compile(layer);
     }
+
+    public void setDirty() { this.dirty = true; }
 }

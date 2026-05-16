@@ -53,6 +53,18 @@ public class Minecraft implements Runnable {
     public Level level;
     public LevelRenderer levelRenderer;
     public Player player;
+
+    public volatile boolean levelReady = false;
+
+    public int pendingWidth = -1;
+    public int pendingHeight = -1;
+    public int pendingDepth = -1;
+    public byte[] pendingBlocks = null;
+    public volatile boolean levelUpdatePending = false;
+
+    public volatile String loadingText = "";
+    public volatile Color loadingColor = Color.WHITE;
+
     private FontRenderer font;
     private Font minecraftFont;
     public Chat chat;
@@ -62,59 +74,32 @@ public class Minecraft implements Runnable {
 
     private Crosshair crosshair;
     private Info info;
-    public int fps;
+    public  int fps;
 
     private final FloatBuffer fogColor = BufferUtils.createFloatBuffer(4);
 
-    public final int width = 1280;
+    public final int width  = 1280;
     private final int height = 720;
 
     private final IntBuffer viewportBuffer = BufferUtils.createIntBuffer(16);
     private final IntBuffer selectBuffer = BufferUtils.createIntBuffer(2000);
     private HitResult hitResult;
 
-    public int pendingWidth = -1;
-    public int pendingHeight = -1;
-    public int pendingDepth = -1;
-    public byte[] pendingBlocks = null;
-    public boolean levelUpdatePending = false;
-
-    public volatile String loadingText = "";
-    public volatile Color loadingColor = Color.WHITE;
-
-    private void applyPendingLevel() {
-        if (!levelUpdatePending) return;
-        this.level = new client.level.Level(pendingWidth, pendingHeight, pendingDepth);
-        this.level.loadLevel(pendingWidth, pendingHeight, pendingDepth, pendingBlocks);
-        this.levelRenderer = new client.level.LevelRenderer(this.level);
-        this.player = new Player(this.level);
-
-        this.levelRenderer.rebuildAll();
-
-        levelUpdatePending = false;
-        System.out.println("Level loaded from server!");
-    }
-
     public Minecraft(String ip, int port, String username) throws IOException {
         mc = this;
         this.username = username;
         this.socket = new SocketClient(ip, port, username);
-        this.socketThread = new Thread(socket);
+        this.socketThread  = new Thread(socket);
         this.playerManager = new PlayerManager();
+        this.level = new Level(64);
     }
 
     public void init() throws LWJGLException {
-        this.fogColor.put(new float[]{
-                14 / 255.0F,
-                11 / 255.0F,
-                10 / 255.0F,
-                255 / 255.0F
-        }).flip();
+        fogColor.put(new float[]{14/255f, 11/255f, 10/255f, 1f}).flip();
 
-        Display.setDisplayMode(new DisplayMode(this.width, this.height));
+        Display.setDisplayMode(new DisplayMode(width, height));
         Display.setTitle("rd-multiplayer " + GIT_HASH);
         Display.setVSyncEnabled(true);
-
         Display.create();
         Keyboard.create();
         Mouse.create();
@@ -134,12 +119,9 @@ public class Minecraft implements Runnable {
         }
 
         font = new FontRenderer(minecraftFont);
-
         crosshair = new Crosshair(16, "/client/textures/crosshair.png");
         info = new Info(font);
         chat = new Chat(font, 50, 0, height - 150 - 16, 500, 150);
-
-
 
         Mouse.setGrabbed(true);
     }
@@ -162,29 +144,34 @@ public class Minecraft implements Runnable {
             System.exit(0);
         }
 
-        while (!levelUpdatePending) {
+        System.out.println("Waiting for chunks from server...");
+        while (!levelReady) {
+            if (levelUpdatePending) {
+                applyPendingLevel();
+                break;
+            }
             renderLoadingScreen();
             try { Thread.sleep(16); } catch (InterruptedException ignored) {}
         }
 
-        applyPendingLevel();
+        if (levelRenderer == null) {
+            levelRenderer = new LevelRenderer(level);
+            player = new Player(level);
+            level.forEachLoadedChunk((cx, cz) -> levelRenderer.chunkLoaded(cx, cz));
+        }
+
         keepAlive();
 
-        int frames = 0;
+        int  frames   = 0;
         long lastTime = System.currentTimeMillis();
 
         try {
             while (!Display.isCloseRequested()) {
-                this.timer.advanceTime();
-
-                for (int i = 0; i < this.timer.ticks; ++i) {
-                    tick();
-                }
-
-                render(this.timer.partialTicks);
+                timer.advanceTime();
+                for (int i = 0; i < timer.ticks; i++) tick();
+                render(timer.partialTicks);
 
                 frames++;
-
                 while (System.currentTimeMillis() >= lastTime + 1000L) {
                     System.out.println(frames + " fps, " + Chunk.updates);
                     fps = frames;
@@ -199,130 +186,112 @@ public class Minecraft implements Runnable {
             destroy();
         }
     }
-
+  
+    private void applyPendingLevel() {
+        if (!levelUpdatePending) return;
+        this.level = new Level(pendingDepth);
+        this.level.loadLevel(pendingWidth, pendingHeight, pendingDepth, pendingBlocks);
+        this.levelRenderer = new LevelRenderer(this.level);
+        this.player = new Player(this.level);
+        this.levelRenderer.rebuildAll();
+        levelUpdatePending = false;
+        System.out.println("Level loaded from server (legacy LEVEL_DATA)!");
+    }
 
     private void tick() throws IOException {
         int[] update;
         while ((update = SocketClient.pendingBlocks.poll()) != null) {
-            if (this.level != null)
-                this.level.setTile(update[0], update[1], update[2], update[3]);
+            if (level != null) level.setTile(update[0], update[1], update[2], update[3]);
         }
-
-        this.player.tick();
+        if (player != null) player.tick();
     }
 
-    private void moveCameraToPlayer(float partialTicks) {
-        Player player = this.player;
-
-        glTranslatef(0.0f, 0.0f, -0.3f);
-
-        glRotatef(player.xRotation, 1.0f, 0.0f, 0.0f);
-        glRotatef(player.yRotation, 0.0f, 1.0f, 0.0f);
-
-        double x = this.player.prevX + (this.player.x - this.player.prevX) * partialTicks;
-        double y = this.player.prevY + (this.player.y - this.player.prevY) * partialTicks;
-        double z = this.player.prevZ + (this.player.z - this.player.prevZ) * partialTicks;
-
+    private void moveCameraToPlayer(float pt) {
+        glTranslatef(0f, 0f, -0.3f);
+        glRotatef(player.xRotation, 1f, 0f, 0f);
+        glRotatef(player.yRotation, 0f, 1f, 0f);
+        double x = player.prevX + (player.x - player.prevX) * pt;
+        double y = player.prevY + (player.y - player.prevY) * pt;
+        double z = player.prevZ + (player.z - player.prevZ) * pt;
         glTranslated(-x, -y, -z);
     }
 
-
-    private void setupCamera(float partialTicks) {
+    private void setupCamera(float pt) {
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-
         gluPerspective(70, width / (float) height, 0.05F, 1000);
-
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
-
-        moveCameraToPlayer(partialTicks);
+        moveCameraToPlayer(pt);
     }
 
-    private void setupPickCamera(float partialTicks, int x, int y) {
+    private void setupPickCamera(float pt, int x, int y) {
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-
-        this.viewportBuffer.clear();
-
-        glGetInteger(GL_VIEWPORT, this.viewportBuffer);
-
-        this.viewportBuffer.flip();
-        this.viewportBuffer.limit(16);
-
-        gluPickMatrix(x, y, 5.0f, 5.0f, this.viewportBuffer);
-        gluPerspective(70.0f, this.width / (float) this.height, 0.05f, 1000.0f);
-
+        viewportBuffer.clear();
+        glGetInteger(GL_VIEWPORT, viewportBuffer);
+        viewportBuffer.flip();
+        viewportBuffer.limit(16);
+        gluPickMatrix(x, y, 5f, 5f, viewportBuffer);
+        gluPerspective(70f, width / (float) height, 0.05f, 1000f);
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
-
-        moveCameraToPlayer(partialTicks);
+        moveCameraToPlayer(pt);
     }
 
-    private void pick(float partialTicks) {
-        this.selectBuffer.clear();
-
-        glSelectBuffer(this.selectBuffer);
+    private void pick(float pt) {
+        selectBuffer.clear();
+        glSelectBuffer(selectBuffer);
         glRenderMode(GL_SELECT);
-
-        this.setupPickCamera(partialTicks, this.width / 2, this.height / 2);
-
-        this.levelRenderer.pick(this.player);
-
-        this.selectBuffer.flip();
-        this.selectBuffer.limit(this.selectBuffer.capacity());
+        setupPickCamera(pt, width / 2, height / 2);
+        levelRenderer.pick(player);
+        selectBuffer.flip();
+        selectBuffer.limit(selectBuffer.capacity());
 
         long closest = 0L;
-        int[] names = new int[10];
-        int hitNameCount = 0;
+        int[] names  = new int[10];
+        int   hitNameCount = 0;
 
         int hits = glRenderMode(GL_RENDER);
-        for (int hitIndex = 0; hitIndex < hits; hitIndex++) {
-
-            int nameCount = this.selectBuffer.get();
-            long minZ = this.selectBuffer.get();
-            this.selectBuffer.get();
-
-            if (minZ < closest || hitIndex == 0) {
-                closest = minZ;
+        for (int hi = 0; hi < hits; hi++) {
+            int  nameCount = selectBuffer.get();
+            long minZ      = selectBuffer.get();
+            selectBuffer.get();
+            if (minZ < closest || hi == 0) {
+                closest      = minZ;
                 hitNameCount = nameCount;
-
-                for (int nameIndex = 0; nameIndex < nameCount; nameIndex++) {
-                    names[nameIndex] = this.selectBuffer.get();
-                }
+                for (int ni = 0; ni < nameCount; ni++) names[ni] = selectBuffer.get();
             } else {
-                for (int nameIndex = 0; nameIndex < nameCount; ++nameIndex) {
-                    this.selectBuffer.get();
-                }
+                for (int ni = 0; ni < nameCount; ni++) selectBuffer.get();
             }
         }
 
-        if (hitNameCount > 0) {
-            this.hitResult = new HitResult(names[0], names[1], names[2], names[3], names[4]);
-        } else {
-            this.hitResult = null;
-        }
+        hitResult = hitNameCount > 0
+                ? new HitResult(names[0], names[1], names[2], names[3], names[4])
+                : null;
     }
 
-
-    private void render(float partialTicks) throws IOException {
+    private void render(float pt) throws IOException {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        if (!levelUpdatePending && level.getWidth() > 0 && level.getHeight() > 0 && level.getDepth() > 0) {
+        boolean worldReady = (levelReady || !levelUpdatePending)
+                && level != null && levelRenderer != null && player != null
+                && level.hasAnyChunk();
+
+        if (worldReady) {
             float motionX = Mouse.getDX();
             float motionY = Mouse.getDY();
-            this.player.turn(motionX, motionY);
+            player.turn(motionX, motionY);
 
-            pick(partialTicks);
+            pick(pt);
 
             while (Mouse.next()) {
                 if (Mouse.getEventButtonState() && hitResult != null) {
-                    if (Mouse.getEventButton() == 0)
+                    if (Mouse.getEventButton() == 0) {
                         SocketClient.sendBlock(Packets.BLOCK_BREAK, hitResult.x, hitResult.y, hitResult.z);
+                    }
                     if (Mouse.getEventButton() == 1) {
-                        int x = hitResult.x;
-                        int y = hitResult.y;
-                        int z = hitResult.z;
+                        int x = hitResult.x, y = hitResult.y, z = hitResult.z;
                         if (hitResult.face == 0) y--;
                         if (hitResult.face == 1) y++;
                         if (hitResult.face == 2) z--;
@@ -330,51 +299,37 @@ public class Minecraft implements Runnable {
                         if (hitResult.face == 4) x--;
                         if (hitResult.face == 5) x++;
 
-                        float pMinX = (float) (player.x - player.width);
-                        float pMaxX = (float) (player.x + player.width);
-                        float pMinY = (float) (player.y - player.height);
-                        float pMaxY = (float) (player.y + player.height);
-                        float pMinZ = (float) (player.z - player.width);
-                        float pMaxZ = (float) (player.z + player.width);
-
-                        float bMinX = x;
-                        float bMaxX = x + 1;
-                        float bMinY = y;
-                        float bMaxY = y + 1;
-                        float bMinZ = z;
-                        float bMaxZ = z + 1;
-
-                        boolean intersects = pMaxX > bMinX && pMinX < bMaxX && pMaxY > bMinY && pMinY < bMaxY && pMaxZ > bMinZ && pMinZ < bMaxZ;
-
-                        if (intersects) return;
-
-                        SocketClient.sendBlock(Packets.BLOCK_PLACE, x, y, z);
+                        float pMinX = (float)(player.x - player.width),  pMaxX = (float)(player.x + player.width);
+                        float pMinY = (float)(player.y - player.height), pMaxY = (float)(player.y + player.height);
+                        float pMinZ = (float)(player.z - player.width),  pMaxZ = (float)(player.z + player.width);
+                        boolean intersects =
+                                pMaxX > x && pMinX < x+1 &&
+                                pMaxY > y && pMinY < y+1 &&
+                                pMaxZ > z && pMinZ < z+1;
+                        if (!intersects) SocketClient.sendBlock(Packets.BLOCK_PLACE, x, y, z);
                     }
-
                 }
             }
 
-            setupCamera(partialTicks);
+            setupCamera(pt);
 
             glEnable(GL_FOG);
             glFogi(GL_FOG_MODE, GL_LINEAR);
             glFogf(GL_FOG_START, -10);
             glFogf(GL_FOG_END, 20);
-            glFog(GL_FOG_COLOR, this.fogColor);
+            glFog(GL_FOG_COLOR, fogColor);
             glDisable(GL_FOG);
 
             levelRenderer.render(0);
             glEnable(GL_FOG);
             levelRenderer.render(1);
-            levelRenderer.renderPlayers(Minecraft.mc.getPlayerManager());
-            levelRenderer.renderNameTags(this.playerManager, this.player, this.font);
+            levelRenderer.renderPlayers(playerManager);
+            levelRenderer.renderNameTags(playerManager, player, font);
             glDisable(GL_TEXTURE_2D);
 
-            if (hitResult != null)
-                levelRenderer.renderHit(hitResult);
+            if (hitResult != null) levelRenderer.renderHit(hitResult);
 
             glDisable(GL_FOG);
-
             crosshair.render(width, height);
             info.render(width, height);
             chat.render(width, height);
@@ -388,13 +343,10 @@ public class Minecraft implements Runnable {
     }
 
     private void keepAlive() {
-        Thread keepAliveThread = new Thread(() -> {
+        Thread t = new Thread(() -> {
             while (true) {
                 try {
-                    if (socket.isConnected()) {
-                        long timestamp = System.currentTimeMillis();
-                        SocketClient.sendKeepalive(timestamp);
-                    }
+                    if (socket.isConnected()) SocketClient.sendKeepalive(System.currentTimeMillis());
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     break;
@@ -403,8 +355,8 @@ public class Minecraft implements Runnable {
                 }
             }
         }, "KeepAliveThread");
-        keepAliveThread.setDaemon(true);
-        keepAliveThread.start();
+        t.setDaemon(true);
+        t.start();
     }
 
     private int loadingBackground = -1;
@@ -413,55 +365,42 @@ public class Minecraft implements Runnable {
         if (loadingBackground == -1) {
             loadingBackground = Textures.loadTexture("/client/textures/background.png", GL_NEAREST);
         }
-
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
+        glPushMatrix(); glLoadIdentity();
         glOrtho(0, width, height, 0, -1, 1);
-
         glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
+        glPushMatrix(); glLoadIdentity();
 
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
-        glEnable(GL_TEXTURE_2D);
-        glEnable(GL_BLEND);
+        glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
+        glEnable(GL_TEXTURE_2D);  glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         glColor4f(1f, 1f, 1f, 1f);
         Textures.bind(loadingBackground);
         glBegin(GL_QUADS);
-        glTexCoord2f(0, 0); glVertex2f(0, 0);
+        glTexCoord2f(0, 0); glVertex2f(0,     0);
         glTexCoord2f(1, 0); glVertex2f(width, 0);
         glTexCoord2f(1, 1); glVertex2f(width, height);
-        glTexCoord2f(0, 1); glVertex2f(0, height);
+        glTexCoord2f(0, 1); glVertex2f(0,     height);
         glEnd();
 
-        int textWidth = font.getStringWidth(loadingText);
+        int textWidth  = font.getStringWidth(loadingText);
         int textHeight = font.getStringHeight();
         int tx = (width  / 2) - (textWidth  / 2);
         int ty = (height / 2) - (textHeight / 2);
         glColor4f(1f, 1f, 1f, 1f);
         font.drawString(loadingText, tx, ty, loadingColor, true);
 
-        glDisable(GL_BLEND);
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_CULL_FACE);
-
+        glDisable(GL_BLEND); glEnable(GL_DEPTH_TEST); glEnable(GL_CULL_FACE);
         glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
+        glMatrixMode(GL_PROJECTION); glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
 
         Display.update();
     }
-
-    public PlayerManager getPlayerManager() {
-        return playerManager;
-    }
-
-    public Level getLevel() {return level;}
+  
+    public PlayerManager getPlayerManager() { return playerManager; }
+    public Level getLevel() { return level; }
 }
