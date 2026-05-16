@@ -29,9 +29,9 @@ public class Level {
         chunk = new LevelChunk(cx, cz, depth);
         if (!chunk.load(CHUNK_DIR)) {
             chunk.generate();
-            System.out.println("Generated chunk " + cx + "," + cz);
+            // System.out.println("Generated chunk " + cx + "," + cz);
         } else {
-            System.out.println("Loaded chunk " + cx + "," + cz);
+            // System.out.println("Loaded chunk " + cx + "," + cz);
         }
         loadedChunks.put(k, chunk);
         return chunk;
@@ -41,7 +41,7 @@ public class Level {
         LevelChunk chunk = loadedChunks.remove(key(cx, cz));
         if (chunk != null) {
             chunk.save(CHUNK_DIR);
-            System.out.println("Unloaded chunk " + cx + "," + cz);
+            // System.out.println("Unloaded chunk " + cx + "," + cz);
         }
     }
 
