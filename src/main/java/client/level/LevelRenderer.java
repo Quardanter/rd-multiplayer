@@ -1,128 +1,137 @@
 package client.level;
 
 import client.*;
-import client.phys.AABB;
 import client.net.PlayerManager;
-import org.lwjgl.BufferUtils;
-
+import client.phys.AABB;
 import java.util.Map;
-
+import java.util.concurrent.ConcurrentHashMap;
 import static org.lwjgl.opengl.GL11.*;
 
 public class LevelRenderer implements LevelListener {
-
-    private static final int CHUNK_SIZE = 16;
-
+    private static final int CHUNK_SIZE = Level.CHUNK_SIZE;
+    private static final int RENDER_CHUNK_HEIGHT = 16;
     private final Tessellator tessellator;
     private final Level level;
-    private final Chunk[] chunks;
-
-    private final int chunkAmountX;
-    private final int chunkAmountY;
-    private final int chunkAmountZ;
+    private final ConcurrentHashMap<Long, Chunk> renderChunks = new ConcurrentHashMap<>();
 
     public LevelRenderer(Level level) {
         this.tessellator = new Tessellator();
         this.level = level;
+        level.addListener(this);
+    }
+    private static long rcKey(int cx, int sliceY, int cz) {
+        return ((long) cx << 40) | ((long) sliceY << 20) | (cz & 0xFFFFF);
+    }
 
-        this.chunkAmountX = level.width / CHUNK_SIZE;
-        this.chunkAmountY = level.depth / CHUNK_SIZE;
-        this.chunkAmountZ = level.height / CHUNK_SIZE;
+    private int sliceCount() {
+        return Math.max(1, (level.depth + RENDER_CHUNK_HEIGHT - 1) / RENDER_CHUNK_HEIGHT);
+    }
 
-        this.chunks = new Chunk[this.chunkAmountX * this.chunkAmountY * this.chunkAmountZ];
+    private Chunk getOrCreateRenderChunk(int cx, int sliceY, int cz) {
+        long key = rcKey(cx, sliceY, cz);
+        return renderChunks.computeIfAbsent(key, k -> {
+            int minX = cx * CHUNK_SIZE;
+            int minY = sliceY * RENDER_CHUNK_HEIGHT;
+            int minZ = cz * CHUNK_SIZE;
+            int maxX = minX + CHUNK_SIZE;
+            int maxY = Math.min(level.depth, minY + RENDER_CHUNK_HEIGHT);
+            int maxZ = minZ + CHUNK_SIZE;
+            return new Chunk(level, minX, minY, minZ, maxX, maxY, maxZ);
+        });
+    }
 
-        for (int x = 0; x < this.chunkAmountX; x++) {
-            for (int y = 0; y < this.chunkAmountY; y++) {
-                for (int z = 0; z < this.chunkAmountZ; z++) {
-                    int minChunkX = x * CHUNK_SIZE;
-                    int minChunkY = y * CHUNK_SIZE;
-                    int minChunkZ = z * CHUNK_SIZE;
+    @Override
+    public void chunkLoaded(int cx, int cz) {
+        int slices = sliceCount();
+        for (int sy = 0; sy < slices; sy++) {
+            Chunk rc = getOrCreateRenderChunk(cx, sy, cz);
+            rc.setDirty();
+        }
+    }
 
-                    int maxChunkX = Math.min(level.width,  (x + 1) * CHUNK_SIZE);
-                    int maxChunkY = Math.min(level.depth,  (y + 1) * CHUNK_SIZE);
-                    int maxChunkZ = Math.min(level.height, (z + 1) * CHUNK_SIZE);
+    @Override
+    public void chunkUnloaded(int cx, int cz) {
+        int slices = sliceCount();
+        for (int sy = 0; sy < slices; sy++) {
+            renderChunks.remove(rcKey(cx, sy, cz));
+        }
+    }
 
-                    this.chunks[(x + y * this.chunkAmountX) * this.chunkAmountZ + z] =
-                            new Chunk(level, minChunkX, minChunkY, minChunkZ, maxChunkX, maxChunkY, maxChunkZ);
-                }
+    @Override
+    public void lightColumnChanged(int x, int z, int minY, int maxY) {
+        setDirty(x - 1, minY - 1, z - 1, x + 1, maxY + 1, z + 1);
+    }
+
+    @Override
+    public void tileChanged(int x, int y, int z) {
+        setDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1);
+    }
+
+    @Override
+    public void allChanged() {
+        for (Chunk rc : renderChunks.values()) rc.setDirty();
+    }
+
+    public void setDirty(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        int minCX = Math.max(0, minX / CHUNK_SIZE);
+        int minSY = Math.max(0, minY / RENDER_CHUNK_HEIGHT);
+        int minCZ = Math.max(0, minZ / CHUNK_SIZE);
+        int maxCX = maxX / CHUNK_SIZE;
+        int maxSY = maxY / RENDER_CHUNK_HEIGHT;
+        int maxCZ = maxZ / CHUNK_SIZE;
+
+        for (long key : renderChunks.keySet()) {
+            int cx = (int)(key >> 40);
+            int sy = (int)((key >> 20) & 0xFFFFF);
+            int cz = (int)(key & 0xFFFFF);
+            if (cx >= minCX && cx <= maxCX && sy >= minSY && sy <= maxSY && cz >= minCZ && cz <= maxCZ) {
+                Chunk rc = renderChunks.get(key);
+                if (rc != null) rc.setDirty();
             }
         }
-
-        level.addListener(this);
     }
 
     public void render(int layer) {
         Frustum frustum = Frustum.getFrustum();
-
         Chunk.rebuiltThisFrame = 0;
 
-        for (Chunk chunk : this.chunks) {
-
-            if (frustum.cubeInFrustum(chunk.boundingBox)) {
-
-                chunk.render(layer);
+        for (Chunk rc : renderChunks.values()) {
+            if (frustum.cubeInFrustum(rc.boundingBox)) {
+                rc.render(layer);
             }
         }
     }
 
-    public void setDirty(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        minX /= CHUNK_SIZE;
-        minY /= CHUNK_SIZE;
-        minZ /= CHUNK_SIZE;
-        maxX /= CHUNK_SIZE;
-        maxY /= CHUNK_SIZE;
-        maxZ /= CHUNK_SIZE;
-
-        minX = Math.max(minX, 0);
-        minY = Math.max(minY, 0);
-        minZ = Math.max(minZ, 0);
-
-        maxX = Math.min(maxX, this.chunkAmountX - 1);
-        maxY = Math.min(maxY, this.chunkAmountY - 1);
-        maxZ = Math.min(maxZ, this.chunkAmountZ - 1);
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    Chunk chunk = this.chunks[(x + y * this.chunkAmountX) * this.chunkAmountZ + z];
-
-                    chunk.setDirty();
-                }
-            }
+    public void rebuildAll() {
+        Chunk.rebuiltThisFrame = 0;
+        for (Chunk rc : renderChunks.values()) {
+            rc.rebuildNow(0);
+            rc.rebuildNow(1);
         }
     }
 
     public void pick(Player player) {
         float radius = 3.0F;
-        AABB boundingBox = player.boundingBox.grow(radius, radius, radius);
+        AABB bb = player.boundingBox.grow(radius, radius, radius);
 
-        int minX = (int) boundingBox.minX;
-        int maxX = (int) (boundingBox.maxX + 1.0f);
-        int minY = (int) boundingBox.minY;
-        int maxY = (int) (boundingBox.maxY + 1.0f);
-        int minZ = (int) boundingBox.minZ;
-        int maxZ = (int) (boundingBox.maxZ + 1.0f);
+        int x0 = (int) bb.minX, x1 = (int)(bb.maxX + 1);
+        int y0 = (int) bb.minY, y1 = (int)(bb.maxY + 1);
+        int z0 = (int) bb.minZ, z1 = (int)(bb.maxZ + 1);
 
         glInitNames();
-        for (int x = minX; x < maxX; x++) {
+        for (int x = x0; x < x1; x++) {
             glPushName(x);
-            for (int y = minY; y < maxY; y++) {
+            for (int y = y0; y < y1; y++) {
                 glPushName(y);
-                for (int z = minZ; z < maxZ; z++) {
+                for (int z = z0; z < z1; z++) {
                     glPushName(z);
-
-                    if (this.level.isSolidTile(x, y, z)) {
-
+                    if (level.isSolidTile(x, y, z)) {
                         glPushName(0);
-
                         for (int face = 0; face < 6; face++) {
-
                             glPushName(face);
-
-                            this.tessellator.init();
-                            Tile.rock.renderFace(this.tessellator, x, y, z, face);
-                            this.tessellator.flush();
-
+                            tessellator.init();
+                            Tile.rock.renderFace(tessellator, x, y, z, face);
+                            tessellator.flush();
                             glPopName();
                         }
                         glPopName();
@@ -138,11 +147,11 @@ public class LevelRenderer implements LevelListener {
     public void renderHit(HitResult hitResult) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_CURRENT_BIT);
-        glColor4f(1.0f, 1.0f, 1.0f, (float) Math.sin(System.currentTimeMillis() / 100.0) * 0.2f + 0.4f);
+        glColor4f(1f, 1f, 1f, (float) Math.sin(System.currentTimeMillis() / 100.0) * 0.2f + 0.4f);
 
-        this.tessellator.init();
-        Tile.rock.renderFace(this.tessellator, hitResult.x, hitResult.y, hitResult.z, hitResult.face);
-        this.tessellator.flush();
+        tessellator.init();
+        Tile.rock.renderFace(tessellator, hitResult.x, hitResult.y, hitResult.z, hitResult.face);
+        tessellator.flush();
 
         glDisable(GL_BLEND);
     }
@@ -154,14 +163,14 @@ public class LevelRenderer implements LevelListener {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        for (Map.Entry<String, Position> entry : playerManager.getPlayers().entrySet()) {
-            Position pos = entry.getValue();
+        for (Map.Entry<String, client.Position> entry : playerManager.getPlayers().entrySet()) {
+            client.Position pos = entry.getValue();
             glPushMatrix();
             glTranslatef((float) pos.x, (float) pos.y - 1.62f, (float) pos.z);
             glRotatef(-pos.yaw, 0f, 1f, 0f);
-            this.tessellator.init();
+            tessellator.init();
             renderPlayerModel();
-            this.tessellator.flush();
+            tessellator.flush();
             glPopMatrix();
         }
 
@@ -180,47 +189,28 @@ public class LevelRenderer implements LevelListener {
         renderBox(-0.50f, 0.50f, -0.125f,-0.25f, 1.25f,  0.125f, 0.85f, 0.65f, 0.50f);
     }
 
-    private void renderBox(float x0, float y0, float z0, float x1, float y1, float z1,
-                           float r, float g, float b) {
-        this.tessellator.color(r, g, b);
-
-        this.tessellator.vertex(x0, y0, z0);
-        this.tessellator.vertex(x1, y0, z0);
-        this.tessellator.vertex(x1, y0, z1);
-        this.tessellator.vertex(x0, y0, z1);
-
-        this.tessellator.vertex(x0, y1, z0);
-        this.tessellator.vertex(x1, y1, z0);
-        this.tessellator.vertex(x1, y1, z1);
-        this.tessellator.vertex(x0, y1, z1);
-
-        this.tessellator.vertex(x0, y0, z0);
-        this.tessellator.vertex(x1, y0, z0);
-        this.tessellator.vertex(x1, y1, z0);
-        this.tessellator.vertex(x0, y1, z0);
-
-        this.tessellator.vertex(x0, y0, z1);
-        this.tessellator.vertex(x1, y0, z1);
-        this.tessellator.vertex(x1, y1, z1);
-        this.tessellator.vertex(x0, y1, z1);
-
-        this.tessellator.vertex(x0, y0, z0);
-        this.tessellator.vertex(x0, y1, z0);
-        this.tessellator.vertex(x0, y1, z1);
-        this.tessellator.vertex(x0, y0, z1);
-
-        this.tessellator.vertex(x1, y0, z0);
-        this.tessellator.vertex(x1, y1, z0);
-        this.tessellator.vertex(x1, y1, z1);
-        this.tessellator.vertex(x1, y0, z1);
+    private void renderBox(float x0, float y0, float z0, float x1, float y1, float z1, float r, float g, float b) {
+        tessellator.color(r, g, b);
+        tessellator.vertex(x0, y0, z0); tessellator.vertex(x1, y0, z0);
+        tessellator.vertex(x1, y0, z1); tessellator.vertex(x0, y0, z1);
+        tessellator.vertex(x0, y1, z0); tessellator.vertex(x1, y1, z0);
+        tessellator.vertex(x1, y1, z1); tessellator.vertex(x0, y1, z1);
+        tessellator.vertex(x0, y0, z0); tessellator.vertex(x1, y0, z0);
+        tessellator.vertex(x1, y1, z0); tessellator.vertex(x0, y1, z0);
+        tessellator.vertex(x0, y0, z1); tessellator.vertex(x1, y0, z1);
+        tessellator.vertex(x1, y1, z1); tessellator.vertex(x0, y1, z1);
+        tessellator.vertex(x0, y0, z0); tessellator.vertex(x0, y1, z0);
+        tessellator.vertex(x0, y1, z1); tessellator.vertex(x0, y0, z1);
+        tessellator.vertex(x1, y0, z0); tessellator.vertex(x1, y1, z0);
+        tessellator.vertex(x1, y1, z1); tessellator.vertex(x1, y0, z1);
     }
+
     public void renderNameTags(PlayerManager playerManager, Player localPlayer, FontRenderer fontRenderer) {
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_TEXTURE_2D);
         glDisable(GL_FOG);
-
         glDepthMask(false);
         glDisable(GL_CULL_FACE);
 
@@ -229,34 +219,28 @@ public class LevelRenderer implements LevelListener {
             client.Position pos = entry.getValue();
 
             glPushMatrix();
-
             glTranslated(pos.x, pos.y + 0.7D, pos.z);
-
-            glRotatef(-localPlayer.yRotation, 0.0F, 1.0F, 0.0F);
-            glRotatef(localPlayer.xRotation, 1.0F, 0.0F, 0.0F);
+            glRotatef(-localPlayer.yRotation, 0f, 1f, 0f);
+            glRotatef(localPlayer.xRotation, 1f, 0f, 0f);
 
             float scale = 0.015F;
             glScalef(scale, -scale, scale);
 
-            int textWidth = fontRenderer.getStringWidth(name);
-            int textHeight = fontRenderer.getStringHeight();
-            int xOffset = -textWidth / 2;
+            int tw = fontRenderer.getStringWidth(name);
+            int th = fontRenderer.getStringHeight();
+            int xo = -tw / 2;
 
             glDisable(GL_TEXTURE_2D);
-            glColor4f(0.0F, 0.0F, 0.0F, 0.25F);
+            glColor4f(0f, 0f, 0f, 0.25f);
             glBegin(GL_QUADS);
-            glVertex3f(xOffset - 2, -1, 0);
-            glVertex3f(xOffset + textWidth + 2, -1, 0);
-            glVertex3f(xOffset + textWidth + 2, textHeight + 1, 0);
-            glVertex3f(xOffset - 2, textHeight + 1, 0);
+            glVertex3f(xo - 2, -1, 0);  glVertex3f(xo + tw + 2, -1, 0);
+            glVertex3f(xo + tw + 2, th + 1, 0); glVertex3f(xo - 2, th + 1, 0);
             glEnd();
             glEnable(GL_TEXTURE_2D);
 
-            glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-            fontRenderer.drawString(name, xOffset, 0, true);
-
+            glColor4f(1f, 1f, 1f, 1f);
+            fontRenderer.drawString(name, xo, 0, true);
             Textures.bind(0);
-
             glPopMatrix();
         }
 
@@ -264,31 +248,5 @@ public class LevelRenderer implements LevelListener {
         glEnable(GL_CULL_FACE);
         glEnable(GL_FOG);
         glDisable(GL_BLEND);
-    }
-
-    @Override
-    public void lightColumnChanged(int x, int z, int minY, int maxY) {
-        setDirty(x - 1, minY - 1, z - 1, x + 1, maxY + 1, z + 1);
-    }
-
-    @Override
-    public void tileChanged(int x, int y, int z) {
-        setDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1);
-    }
-
-    @Override
-    public void allChanged() {
-        setDirty(0, 0, 0, this.level.width, this.level.depth, this.level.height);
-    }
-
-    public void rebuildAll() {
-        int saved = Chunk.rebuiltThisFrame;
-        Chunk.rebuiltThisFrame = 0;
-        int cap = Integer.MAX_VALUE;
-
-        for (Chunk chunk : this.chunks) {
-            chunk.rebuildNow(0);
-            chunk.rebuildNow(1);
-        }
     }
 }

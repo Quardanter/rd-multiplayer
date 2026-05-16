@@ -1,88 +1,94 @@
 package server.level;
 
-import client.level.LevelListener;
-import client.phys.AABB;
-
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Level {
+    public static final int CHUNK_SIZE = LevelChunk.CHUNK_SIZE;
+    private static final Path CHUNK_DIR = Paths.get("chunks");
     public final int width;
     public final int height;
     public final int depth;
 
-    public final byte[] blocks;
-    private final int[] lightDepths;
-
+    // chunk storage
+    private final ConcurrentHashMap<Long, LevelChunk> loadedChunks = new ConcurrentHashMap<>();
     public Level(int width, int height, int depth) {
-        this.width = width;
+        this.width  = width;
         this.height = height;
-        this.depth = depth;
+        this.depth  = depth;
 
-        this.blocks = new byte[width * height * depth];
-        this.lightDepths = new int[width * height];
-
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < depth; y++) {
-                for (int z = 0; z < height; z++) {
-                    int index = (y * this.height + z) * this.width + x;
-
-                    this.blocks[index] = (byte) ((y <= depth * 2 / 3) ? 1 : 0);
-                }
-            }
-        }
-
-        load();
+        Files.exists(CHUNK_DIR);
     }
 
-    private static final Path LEVEL_PATH = Paths.get("level.dat");
+    private static long key(int cx, int cz) {
+        return (long) cx * 100_000L + cz;
+    }
 
-    public void load() {
-        if (!Files.exists(LEVEL_PATH)) {
-            System.out.println("No level.dat found, generating level...");
-            return;
+    public LevelChunk getOrLoadChunk(int cx, int cz) {
+        long k = key(cx, cz);
+        LevelChunk chunk = loadedChunks.get(k);
+        if (chunk != null) return chunk;
+
+        chunk = new LevelChunk(cx, cz, depth);
+        if (!chunk.load(CHUNK_DIR)) {
+            chunk.generate();
+            System.out.println("Generated chunk " + cx + "," + cz);
+        } else {
+            System.out.println("Loaded chunk " + cx + "," + cz);
         }
-        try (DataInputStream dis = new DataInputStream(new GZIPInputStream(Files.newInputStream(LEVEL_PATH)))) {
-            dis.readFully(this.blocks);
-            System.out.println("Level loaded from level.dat");
-        } catch (Exception e) {
-            System.err.println("Failed to load level.dat: " + e.getMessage());
+        loadedChunks.put(k, chunk);
+        return chunk;
+    }
+
+    public void unloadChunk(int cx, int cz) {
+        long k = key(cx, cz);
+        LevelChunk chunk = loadedChunks.remove(k);
+        if (chunk != null) {
+            chunk.save(CHUNK_DIR);
+            System.out.println("Unloaded chunk " + cx + "," + cz);
         }
+    }
+
+    public void saveAll() {
+        for (LevelChunk chunk : loadedChunks.values()) {
+            chunk.save(CHUNK_DIR);
+        }
+        System.out.println("All chunks saved.");
     }
 
     public void save() {
-        try {
-            Path parent = LEVEL_PATH.toAbsolutePath().getParent();
-            if (parent != null) Files.createDirectories(parent);
-            try (DataOutputStream dos = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(LEVEL_PATH)))) {
-                dos.write(this.blocks);
-            }
-            System.out.println("Level saved.");
-        } catch (Exception e) {
-            System.err.println("Failed to save level.dat: " + e.getMessage());
-        }
+        saveAll();
+    }
+
+    // block access
+    private LevelChunk chunkFor(int x, int z) {
+        if (x < 0 || z < 0 || x >= width || z >= height) return null;
+        return getOrLoadChunk(x / CHUNK_SIZE, z / CHUNK_SIZE);
+    }
+
+    public byte getTile(int x, int y, int z) {
+        if (y < 0 || y >= depth) return 0;
+        LevelChunk chunk = chunkFor(x, z);
+        if (chunk == null) return 0;
+        return chunk.getBlock(x % CHUNK_SIZE, y, z % CHUNK_SIZE);
     }
 
     public void setTile(int x, int y, int z, int id) {
-        if (x < 0 || y < 0 || z < 0 || x >= this.width || y >= this.depth || z >= this.height) {
-            return;
-        }
-
-        this.blocks[(y * this.height + z) * this.width + x] = (byte) id;
+        if (x < 0 || y < 0 || z < 0 || x >= width || y >= depth || z >= height) return;
+        LevelChunk chunk = chunkFor(x, z);
+        if (chunk == null) return;
+        chunk.setBlock(x % CHUNK_SIZE, y, z % CHUNK_SIZE, id);
     }
 
+    public byte[] getChunkBlocks(int cx, int cz) {
+        return getOrLoadChunk(cx, cz).blocks;
+    }
 
-    public byte[] getBlocks() {return this.blocks;}
+    public int getChunkCountX() { return width  / CHUNK_SIZE; }
+    public int getChunkCountZ() { return height / CHUNK_SIZE; }
 
-    public int getWidth() { return this.width; }
-    public int getHeight() { return this.height; }
-    public int getDepth() { return this.depth; }
+    public int getWidth() { return width; }
+    public int getHeight() { return height; }
+    public int getDepth() { return depth; }
 }

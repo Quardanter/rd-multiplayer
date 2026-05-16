@@ -13,4 +13,6 @@ public final class Packets {
     public static final byte CONNECTION    = 10;
     public static final byte POS           = 11;
     public static final byte SET_POS       = 12;
+    public static final byte CHUNK_DATA    = 13;
+    public static final byte CHUNK_UNLOAD  = 14;
 }

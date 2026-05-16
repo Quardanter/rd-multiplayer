@@ -55,14 +55,4 @@ public class Broadcaster {
             });
         }
     }
-
-    public static void sendLevel(DataOutputStream out) throws IOException {
-        byte[] blocks = Server.level.getBlocks();
-        out.writeByte(Packets.LEVEL_DATA);
-        out.writeInt(Server.level.getWidth());
-        out.writeInt(Server.level.getHeight());
-        out.writeInt(Server.level.getDepth());
-        out.writeInt(blocks.length);
-        out.write(blocks);
-    }
 }

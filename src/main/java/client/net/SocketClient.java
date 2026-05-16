@@ -1,6 +1,7 @@
 package client.net;
 
 import client.Minecraft;
+import client.level.Level;
 import global.Packets;
 
 import java.io.*;
@@ -27,9 +28,10 @@ public class SocketClient implements Runnable {
     public void run() {
         try {
             socket = new Socket(host, port);
-            in  = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(new java.io.BufferedOutputStream(socket.getOutputStream(), 8192));
+            in = new DataInputStream(socket.getInputStream());
+            out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 8192));
 
+            // handshake authentication
             out.writeByte(Packets.AUTH_REQUEST);
             out.writeUTF(username);
             out.flush();
@@ -40,9 +42,7 @@ public class SocketClient implements Runnable {
                 socket.close();
                 return;
             }
-
             System.out.println("Authenticated successfully as " + username);
-
             out.writeByte(Packets.REQUEST_LEVEL);
             out.flush();
 
@@ -51,51 +51,79 @@ public class SocketClient implements Runnable {
 
                 switch (packetId) {
 
-                    case Packets.SET_POS: {
-                        double x = in.readDouble();
-                        double y = in.readDouble();
-                        double z = in.readDouble();
-                        if (Minecraft.mc.player != null) {
-                            Minecraft.mc.player.forcePosition(x, y, z);
+                    case Packets.CHUNK_DATA: {
+                        int cx = in.readInt();
+                        int cz = in.readInt();
+                        int depth = in.readInt();
+                        int len = in.readInt();
+                        byte[] data = new byte[len];
+                        in.readFully(data);
+
+                        Level level = Minecraft.mc.level;
+                        if (level != null) {
+                            level.loadChunk(cx, cz, depth, data);
+                            if (!Minecraft.mc.levelReady) {
+                                Minecraft.mc.levelReady = true;
+                            }
                         }
                         break;
                     }
 
-                    case Packets.BLOCK_PLACE: {
-                        int x = in.readInt();
-                        int y = in.readInt();
-                        int z = in.readInt();
-                        pendingBlocks.add(new int[]{x, y, z, 1});
-                        break;
-                    }
-
-                    case Packets.BLOCK_BREAK: {
-                        int x = in.readInt();
-                        int y = in.readInt();
-                        int z = in.readInt();
-                        pendingBlocks.add(new int[]{x, y, z, 0});
+                    case Packets.CHUNK_UNLOAD: {
+                        int cx = in.readInt();
+                        int cz = in.readInt();
+                        Level level = Minecraft.mc.level;
+                        if (level != null) {
+                            level.unloadChunk(cx, cz);
+                        }
                         break;
                     }
 
                     case Packets.LEVEL_DATA: {
-                        int w   = in.readInt();
-                        int h   = in.readInt();
-                        int d   = in.readInt();
+                        int w = in.readInt();
+                        int h = in.readInt();
+                        int d = in.readInt();
                         int len = in.readInt();
-
                         byte[] blocks = new byte[len];
                         in.readFully(blocks);
 
-                        Minecraft.mc.pendingWidth  = w;
+                        Minecraft.mc.pendingWidth = w;
                         Minecraft.mc.pendingHeight = h;
-                        Minecraft.mc.pendingDepth  = d;
+                        Minecraft.mc.pendingDepth = d;
                         Minecraft.mc.pendingBlocks = blocks;
                         Minecraft.mc.levelUpdatePending = true;
                         break;
                     }
 
+                    case Packets.BLOCK_PLACE: {
+                        int x = in.readInt(), y = in.readInt(), z = in.readInt();
+                        pendingBlocks.add(new int[]{x, y, z, 1});
+                        break;
+                    }
+
+                    case Packets.BLOCK_BREAK: {
+                        int x = in.readInt(), y = in.readInt(), z = in.readInt();
+                        pendingBlocks.add(new int[]{x, y, z, 0});
+                        break;
+                    }
+
+                    case Packets.SET_POS: {
+                        double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
+                        if (Minecraft.mc.player != null) Minecraft.mc.player.forcePosition(x, y, z);
+                        break;
+                    }
+
+                    case Packets.POS: {
+                        String uname = in.readUTF();
+                        double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
+                        float yaw = in.readFloat();
+                        int ping = in.readInt();
+                        Minecraft.mc.getPlayerManager().updatePlayer(uname, x, y, z, yaw, ping);
+                        break;
+                    }
+
                     case Packets.CHAT: {
-                        String author  = in.readUTF();
+                        String author = in.readUTF();
                         String message = in.readUTF();
                         Minecraft.mc.chat.addMessage(author, message);
                         break;
@@ -108,26 +136,14 @@ public class SocketClient implements Runnable {
                     }
 
                     case Packets.CONNECTION: {
-                        int    type     = in.readInt();
-                        String uname    = in.readUTF();
+                        int type = in.readInt();
+                        String uname = in.readUTF();
                         Minecraft.mc.chat.addConnectionMessage(uname, type);
-
                         if (type == 1) {
                             Minecraft.mc.getPlayerManager().removePlayer(uname);
                         } else {
-                            Minecraft.mc.player.sendPosition();
+                            if (Minecraft.mc.player != null) Minecraft.mc.player.sendPosition();
                         }
-                        break;
-                    }
-
-                    case Packets.POS: {
-                        String uname = in.readUTF();
-                        double x     = in.readDouble();
-                        double y     = in.readDouble();
-                        double z     = in.readDouble();
-                        float  yaw   = in.readFloat();
-                        int    ping  = in.readInt();
-                        Minecraft.mc.getPlayerManager().updatePlayer(uname, x, y, z, yaw, ping);
                         break;
                     }
 
@@ -147,21 +163,17 @@ public class SocketClient implements Runnable {
     public static void sendBlock(int packet, int x, int y, int z) throws IOException {
         synchronized (writeLock) {
             out.writeByte(packet);
-            out.writeInt(x);
-            out.writeInt(y);
-            out.writeInt(z);
+            out.writeInt(x); out.writeInt(y); out.writeInt(z);
             out.flush();
         }
     }
 
-    public static void sendPos(int packet, double x, double y, double z, float yaw, int ping) throws IOException {
+    public static void sendPos(int packet, double x, double y, double z, float yaw, int ping)
+            throws IOException {
         synchronized (writeLock) {
             out.writeByte(packet);
-            out.writeDouble(x);
-            out.writeDouble(y);
-            out.writeDouble(z);
-            out.writeFloat(yaw);
-            out.writeInt(ping);
+            out.writeDouble(x); out.writeDouble(y); out.writeDouble(z);
+            out.writeFloat(yaw); out.writeInt(ping);
             out.flush();
         }
     }
