@@ -13,97 +13,102 @@ public class Tessellator {
     private final FloatBuffer vertexBuffer = BufferUtils.createFloatBuffer(MAX_VERTICES * 3);
     private final FloatBuffer textureCoordinateBuffer = BufferUtils.createFloatBuffer(MAX_VERTICES * 2);
     private final FloatBuffer colorBuffer = BufferUtils.createFloatBuffer(MAX_VERTICES * 3);
+    private final FloatBuffer normalBuffer = BufferUtils.createFloatBuffer(MAX_VERTICES * 3);
 
     private int vertices = 0;
 
     private boolean hasTexture = false;
-    private float textureU;
-    private float textureV;
+    private float textureU, textureV;
 
-    private boolean hasColor;
-    private float red;
-    private float green;
-    private float blue;
+    private boolean hasColor = false;
+    private float red, green, blue;
+
+    private boolean hasNormal = false;
+    private float normalX, normalY, normalZ;
 
     public void init() {
         clear();
     }
 
     public void vertex(float x, float y, float z) {
-        this.vertexBuffer.put(this.vertices * 3, x);
-        this.vertexBuffer.put(this.vertices * 3 + 1, y);
-        this.vertexBuffer.put(this.vertices * 3 + 2, z);
+        vertexBuffer.put(vertices * 3,     x);
+        vertexBuffer.put(vertices * 3 + 1, y);
+        vertexBuffer.put(vertices * 3 + 2, z);
 
-        if (this.hasTexture) {
-            this.textureCoordinateBuffer.put(this.vertices * 2, this.textureU);
-            this.textureCoordinateBuffer.put(this.vertices * 2 + 1, this.textureV);
+        if (hasTexture) {
+            textureCoordinateBuffer.put(vertices * 2,     textureU);
+            textureCoordinateBuffer.put(vertices * 2 + 1, textureV);
+        }
+        if (hasColor) {
+            colorBuffer.put(vertices * 3,     red);
+            colorBuffer.put(vertices * 3 + 1, green);
+            colorBuffer.put(vertices * 3 + 2, blue);
+        }
+        if (hasNormal) {
+            normalBuffer.put(vertices * 3,     normalX);
+            normalBuffer.put(vertices * 3 + 1, normalY);
+            normalBuffer.put(vertices * 3 + 2, normalZ);
         }
 
-        if (this.hasColor) {
-            this.colorBuffer.put(this.vertices * 3, this.red);
-            this.colorBuffer.put(this.vertices * 3 + 1, this.green);
-            this.colorBuffer.put(this.vertices * 3 + 2, this.blue);
-        }
-
-        this.vertices++;
-
-        if (this.vertices == MAX_VERTICES) {
-            flush();
-        }
+        vertices++;
+        if (vertices == MAX_VERTICES) flush();
     }
 
-    public void texture(float textureU, float textureV) {
-        this.hasTexture = true;
-        this.textureU = textureU;
-        this.textureV = textureV;
+    public void texture(float u, float v) {
+        hasTexture = true;
+        textureU = u;
+        textureV = v;
     }
 
-    public void color(float red, float green, float blue) {
-        this.hasColor = true;
-        this.red = red;
-        this.green = green;
-        this.blue = blue;
+    public void color(float r, float g, float b) {
+        hasColor = true;
+        red = r;
+        green = g;
+        blue = b;
+    }
+
+    public void normal(float nx, float ny, float nz) {
+        hasNormal = true;
+        normalX = nx;
+        normalY = ny;
+        normalZ = nz;
     }
 
     public void flush() {
-        this.vertexBuffer.flip();
-        this.textureCoordinateBuffer.flip();
-        this.colorBuffer.flip();
+        vertexBuffer.flip();
+        textureCoordinateBuffer.flip();
+        colorBuffer.flip();
+        normalBuffer.flip();
 
-        glVertexPointer(3, GL_POINTS, this.vertexBuffer);
-        if (this.hasTexture) {
-            glTexCoordPointer(2, GL_POINTS, this.textureCoordinateBuffer);
-        }
-        if (this.hasColor) {
-            glColorPointer(3, GL_POINTS, this.colorBuffer);
-        }
+        glVertexPointer(3, 0, vertexBuffer);
+        if (hasTexture) glTexCoordPointer(2, 0, textureCoordinateBuffer);
+        if (hasColor)   glColorPointer(3, 0, colorBuffer);
+        if (hasNormal)  glNormalPointer(0, normalBuffer);
 
         glEnableClientState(GL_VERTEX_ARRAY);
-        if (this.hasTexture) {
-            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        }
-        if (this.hasColor) {
-            glEnableClientState(GL_COLOR_ARRAY);
-        }
+        if (hasTexture) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        if (hasColor)   glEnableClientState(GL_COLOR_ARRAY);
+        if (hasNormal)  glEnableClientState(GL_NORMAL_ARRAY);
 
-        glDrawArrays(GL_QUADS, GL_POINTS, this.vertices);
+        glDrawArrays(GL_QUADS, 0, vertices);
 
         glDisableClientState(GL_VERTEX_ARRAY);
-        if (this.hasTexture) {
-            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-        }
-        if (this.hasColor) {
-            glDisableClientState(GL_COLOR_ARRAY);
-        }
+        if (hasTexture) glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+        if (hasColor)   glDisableClientState(GL_COLOR_ARRAY);
+        if (hasNormal)  glDisableClientState(GL_NORMAL_ARRAY);
+
         clear();
     }
 
     private void clear() {
-        this.vertexBuffer.clear();
-        this.textureCoordinateBuffer.clear();
-        this.colorBuffer.clear();
-        this.vertices = 0;
-        this.hasTexture = false;
-        this.hasColor = false;
+        vertexBuffer.clear();
+        textureCoordinateBuffer.clear();
+        colorBuffer.clear();
+        normalBuffer.clear();
+
+        vertices = 0;
+        hasTexture = false;
+        hasColor = false;
+        hasNormal = false;
     }
 }

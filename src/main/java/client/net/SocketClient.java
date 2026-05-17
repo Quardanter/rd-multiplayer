@@ -210,13 +210,9 @@ public class SocketClient implements Runnable {
                     }
 
                     case Packets.TIME_OF_DAY: {
-                        long epoch = in.readLong();
-                        long cycleLength = in.readLong();
-                        long serverNow = in.readLong();
-                        client.level.WorldTime.epochMillis       = epoch;
-                        client.level.WorldTime.cycleLengthMillis = cycleLength;
-                        client.level.WorldTime.serverClockOffset = serverNow - System.currentTimeMillis();
-                        client.level.WorldTime.initialized = true;
+                        float fraction = in.readFloat();
+                        long cycleLen  = in.readLong();
+                        client.world.WorldTime.syncFromServer(fraction, cycleLen);
                         break;
                     }
 

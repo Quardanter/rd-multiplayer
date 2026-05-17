@@ -34,50 +34,56 @@ public abstract class Block {
         float y0 = y, y1 = y + 1;
         float z0 = z, z1 = z + 1;
 
+        // BOTTOM (face 0, -Y)
         {
             float u0 = minU(faces.col(FaceTextures.BOTTOM));
             float u1 = maxU(faces.col(FaceTextures.BOTTOM));
-            face(t, level, layer, x, y - 1, z, 1f,
+            face(t, level, layer, x, y - 1, z, 1f, 0f, -1f, 0f,
                     x0,y0,z1, x0,y0,z0, x1,y0,z0, x1,y0,z1,
                     u0,MAX_V, u0,MIN_V, u1,MIN_V, u1,MAX_V);
         }
 
+        // TOP (face 1, +Y)
         {
             float u0 = minU(faces.col(FaceTextures.TOP));
             float u1 = maxU(faces.col(FaceTextures.TOP));
-            face(t, level, layer, x, y + 1, z, 1f,
+            face(t, level, layer, x, y + 1, z, 1f, 0f, 1f, 0f,
                     x1,y1,z1, x1,y1,z0, x0,y1,z0, x0,y1,z1,
                     u1,MAX_V, u1,MIN_V, u0,MIN_V, u0,MAX_V);
         }
 
+        // NORTH (face 2, -Z)
         {
             float u0 = minU(faces.col(FaceTextures.NORTH));
             float u1 = maxU(faces.col(FaceTextures.NORTH));
-            face(t, level, layer, x, y, z - 1, .8f,
+            face(t, level, layer, x, y, z - 1, .8f, 0f, 0f, -1f,
                     x0,y1,z0, x1,y1,z0, x1,y0,z0, x0,y0,z0,
                     u1,MIN_V, u0,MIN_V, u0,MAX_V, u1,MAX_V);
         }
 
+        // SOUTH (face 3, +Z)
         {
             float u0 = minU(faces.col(FaceTextures.SOUTH));
             float u1 = maxU(faces.col(FaceTextures.SOUTH));
-            face(t, level, layer, x, y, z + 1, .8f,
+            face(t, level, layer, x, y, z + 1, .8f, 0f, 0f, 1f,
                     x0,y1,z1, x0,y0,z1, x1,y0,z1, x1,y1,z1,
                     u0,MIN_V, u0,MAX_V, u1,MAX_V, u1,MIN_V);
         }
 
+        // WEST (face 4, -X)
         {
             float u0 = minU(faces.col(FaceTextures.WEST));
             float u1 = maxU(faces.col(FaceTextures.WEST));
-            face(t, level, layer, x - 1, y, z, .6f,
+            face(t, level, layer, x - 1, y, z, .6f, -1f, 0f, 0f,
                     x0,y1,z1, x0,y1,z0, x0,y0,z0, x0,y0,z1,
                     u1,MIN_V, u0,MIN_V, u0,MAX_V, u1,MAX_V);
         }
 
+        // EAST (face 5, +X)
         {
             float u0 = minU(faces.col(FaceTextures.EAST));
             float u1 = maxU(faces.col(FaceTextures.EAST));
-            face(t, level, layer, x + 1, y, z, .6f,
+            face(t, level, layer, x + 1, y, z, .6f, 1f, 0f, 0f,
                     x1,y0,z1, x1,y0,z0, x1,y1,z0, x1,y1,z1,
                     u0,MAX_V, u1,MAX_V, u1,MIN_V, u0,MIN_V);
         }
@@ -87,6 +93,7 @@ public abstract class Block {
             Tessellator t, Level level, int layer,
             int x, int y, int z,
             float shade,
+            float nx, float ny, float nz,
 
             float x0,float y0,float z0,
             float x1,float y1,float z1,
@@ -101,12 +108,11 @@ public abstract class Block {
 
         if (level.isSolidTile(x, y, z)) return;
 
-        float rawB = level.getBrightness(x, y, z);
-        boolean lit = rawB >= client.level.WorldTime.currentLit() - 1e-4f;
-        float b = rawB * shade;
+        float b = level.getBrightness(x, y, z) * shade;
 
-        if (lit == (layer == 1)) return;
+        if (!(layer == 1 ^ b == shade)) return;
 
+        t.normal(nx, ny, nz);
         t.color(b, b, b);
 
         t.texture(u0, v0); t.vertex(x0, y0, z0);

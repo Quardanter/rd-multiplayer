@@ -9,9 +9,11 @@ import client.hud.Info;
 import client.level.Chunk;
 import client.level.Level;
 import client.level.LevelRenderer;
+import client.level.SkyRenderer;
 import client.player.local.Camera;
 import client.player.local.LocalPlayer;
 import client.player.remote.PlayerManager;
+import client.world.WorldTime;
 import global.Packets;
 import client.net.SocketClient;
 import org.lwjgl.BufferUtils;
@@ -81,6 +83,9 @@ public class Minecraft implements Runnable {
     public int fps;
 
     private final FloatBuffer fogColor = BufferUtils.createFloatBuffer(4);
+    private final FloatBuffer sunPosBuf  = BufferUtils.createFloatBuffer(4);
+    private final FloatBuffer ambientBuf = BufferUtils.createFloatBuffer(4);
+    private final FloatBuffer diffuseBuf = BufferUtils.createFloatBuffer(4);
 
     public int width = 1280;
     public int height = 720;
@@ -91,13 +96,7 @@ public class Minecraft implements Runnable {
     private final IntBuffer selectBuffer = BufferUtils.createIntBuffer(2000);
     private HitResult hitResult;
 
-    // Day/night cycle: when the sky brightness drifts past this much from
-    // the value the chunk meshes were last baked at, rebuild them so the
-    // per-face vertex colors stay in sync with the cycle. Smaller = smoother
-    // dimming, but more rebuilds. With a 20-minute cycle, 0.02 fires roughly
-    // every 6-10 seconds, which is cheap and visually seamless.
-    private static final float SKY_REBAKE_THRESHOLD = 0.02f;
-    private float lastBakedSkyBrightness = Float.NaN;
+    private final SkyRenderer skyRenderer = new SkyRenderer();
 
     public static void main(String[] args) throws IOException {
         new Thread(new Minecraft()).start();
@@ -119,8 +118,6 @@ public class Minecraft implements Runnable {
     }
 
     public void init() throws LWJGLException {
-        fogColor.put(new float[]{14/255f, 11/255f, 10/255f, 1f}).flip();
-
         Display.setDisplayMode(new DisplayMode(width, height));
         Display.setResizable(true);
         Display.setTitle("rd-multiplayer " + GIT_HASH);
@@ -138,6 +135,10 @@ public class Minecraft implements Runnable {
         glEnable(GL_CULL_FACE);
         glDepthFunc(GL_LEQUAL);
 
+        glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
+        glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 0);
+        glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+
         try (InputStream in = FontRenderer.class.getResourceAsStream("/client/fonts/Minecraft.ttf")) {
             minecraftFont = Font.createFont(Font.TRUETYPE_FONT, in).deriveFont(16f);
         } catch (Exception e) {
@@ -148,6 +149,7 @@ public class Minecraft implements Runnable {
         crosshair = new Crosshair(16, "/client/textures/crosshair.png");
         info = new Info(font);
         chat = new Chat(font, 50, 0, height - 150 - 16, 500, 150);
+        skyRenderer.init();
 
         Mouse.setGrabbed(false);
     }
@@ -228,7 +230,6 @@ public class Minecraft implements Runnable {
 
                 frames++;
                 while (System.currentTimeMillis() >= lastTime + 1000L) {
-                    //System.out.println(frames + " fps, " + Chunk.updates);
                     fps = frames;
                     Chunk.updates = 0;
                     lastTime += 1000L;
@@ -262,14 +263,6 @@ public class Minecraft implements Runnable {
 
         if (Keyboard.isKeyDown(Keyboard.KEY_F11)) {
             toggleFullscreen();
-        }
-
-        if (levelRenderer != null && client.level.WorldTime.initialized) {
-            float now = client.level.WorldTime.skyBrightness();
-            if (Float.isNaN(lastBakedSkyBrightness) || Math.abs(now - lastBakedSkyBrightness) >= SKY_REBAKE_THRESHOLD) {
-                levelRenderer.rebuildAll();
-                lastBakedSkyBrightness = now;
-            }
         }
 
         int[] update;
@@ -323,16 +316,15 @@ public class Minecraft implements Runnable {
             }
         }
 
-        hitResult = hitNameCount > 0
-                ? new HitResult(names[0], names[1], names[2], names[3], names[4])
-                : null;
+        hitResult = hitNameCount > 0 ? new HitResult(names[0], names[1], names[2], names[3], names[4]) : null;
     }
 
     private void render(float pt) throws IOException {
-        float[] skyRgb = new float[3];
-        float[] fogRgb = new float[3];
-        client.level.WorldTime.currentSkyColor(skyRgb);
-        client.level.WorldTime.currentFogColor(fogRgb);
+        float[] skyRgb  = WorldTime.skyColor();
+        float[] fogRgb  = WorldTime.fogColor();
+        float[] sun     = WorldTime.sunDirection();
+        float[] ambient = WorldTime.ambientLight();
+        float[] diffuse = WorldTime.diffuseLight();
 
         glClearColor(skyRgb[0], skyRgb[1], skyRgb[2], 1f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -378,6 +370,20 @@ public class Minecraft implements Runnable {
 
             camera.setup(pt);
 
+            skyRenderer.render();
+
+            sunPosBuf.clear();
+            sunPosBuf.put(sun[0]).put(sun[1]).put(sun[2]).put(0f).flip();
+            glLight(GL_LIGHT0, GL_POSITION, sunPosBuf);
+
+            ambientBuf.clear();
+            ambientBuf.put(ambient[0]).put(ambient[1]).put(ambient[2]).put(1f).flip();
+            glLight(GL_LIGHT0, GL_AMBIENT, ambientBuf);
+
+            diffuseBuf.clear();
+            diffuseBuf.put(diffuse[0]).put(diffuse[1]).put(diffuse[2]).put(1f).flip();
+            glLight(GL_LIGHT0, GL_DIFFUSE, diffuseBuf);
+
             glEnable(GL_FOG);
             glFogi(GL_FOG_MODE, GL_LINEAR);
             glFogf(GL_FOG_START, -10);
@@ -385,9 +391,19 @@ public class Minecraft implements Runnable {
             glFog(GL_FOG_COLOR, fogColor);
             glDisable(GL_FOG);
 
+            glEnable(GL_LIGHTING);
+            glEnable(GL_LIGHT0);
+            glEnable(GL_COLOR_MATERIAL);
+
             levelRenderer.render(0);
             glEnable(GL_FOG);
             levelRenderer.render(1);
+
+            glDisable(GL_COLOR_MATERIAL);
+            glDisable(GL_LIGHT0);
+            glDisable(GL_LIGHTING);
+            glColor4f(1f, 1f, 1f, 1f);
+
             levelRenderer.renderPlayers(playerManager);
             if (camera.mode != Camera.FIRST) {
                 levelRenderer.renderSelf(localPlayer, playerManager);

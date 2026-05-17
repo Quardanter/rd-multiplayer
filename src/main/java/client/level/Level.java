@@ -121,8 +121,8 @@ public class Level {
     }
 
     public float getBrightness(int x, int y, int z) {
-        float dark  = WorldTime.currentShadow();
-        float light = WorldTime.currentLit();
+        float dark  = 0.8F;
+        float light = 1.0F;
         if (y < 0 || y >= depth) return light;
         int cx = Math.floorDiv(x, CHUNK_SIZE);
         int cz = Math.floorDiv(z, CHUNK_SIZE);
@@ -133,6 +133,7 @@ public class Level {
         if (y < ld[lx + lz * CHUNK_SIZE]) return dark;
         return light;
     }
+
 
     public void setTile(int x, int y, int z, int id) {
         if (y < 0 || y >= depth) return;
