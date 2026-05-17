@@ -36,7 +36,7 @@ public class SocketClient implements Runnable {
     }
 
     private void setLoading(String text, Color color) {
-        if (Minecraft.mc.currentScreen instanceof LoadingScreen) {
+        if(Minecraft.mc.currentScreen instanceof LoadingScreen) {
             ((LoadingScreen) Minecraft.mc.currentScreen).loadingText = text;
             ((LoadingScreen) Minecraft.mc.currentScreen).loadingColor = color;
         }
@@ -54,6 +54,7 @@ public class SocketClient implements Runnable {
 
             setLoading("Creating network streams...", Color.WHITE);
 
+            // lookup stored tokens and authenticate
             String storedToken = AuthStore.getToken(serverId, username);
             if (storedToken == null) storedToken = "";
 
@@ -168,8 +169,14 @@ public class SocketClient implements Runnable {
                         double x = in.readDouble(), y = in.readDouble(), z = in.readDouble();
                         float yaw = in.readFloat();
                         float pitch = in.readFloat();
-                        int ping = in.readInt();
-                        Minecraft.mc.getPlayerManager().updatePlayer(uname, x, y, z, yaw, pitch, ping);
+                        Minecraft.mc.getPlayerManager().updatePlayer(uname, x, y, z, yaw, pitch);
+                        break;
+                    }
+
+                    case Packets.PING_INFO: {
+                        String uname = in.readUTF();
+                        int pingMs = in.readInt();
+                        Minecraft.mc.getPlayerManager().updatePing(uname, pingMs);
                         break;
                     }
 
@@ -182,7 +189,12 @@ public class SocketClient implements Runnable {
 
                     case Packets.KEEPALIVE: {
                         long time = in.readLong();
-                        Minecraft.mc.rtt = System.currentTimeMillis() - time;
+                        boolean isResponse = in.readBoolean();
+                        if (isResponse) {
+                            Minecraft.mc.rtt = System.currentTimeMillis() - time;
+                        } else {
+                            SocketClient.sendKeepaliveResponse(time);
+                        }
                         break;
                     }
 
@@ -207,13 +219,6 @@ public class SocketClient implements Runnable {
                         break;
                     }
 
-                    case Packets.TIME_OF_DAY: {
-                        float fraction = in.readFloat();
-                        long cycleLen  = in.readLong();
-                        client.world.WorldTime.syncFromServer(fraction, cycleLen);
-                        break;
-                    }
-
                     default:
                         System.err.println("Unknown packet: " + packetId);
                         break;
@@ -223,75 +228,80 @@ public class SocketClient implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
             setLoading("Connection error: " + e.getMessage(), Color.RED);
-            Minecraft.mc.disconnect();
         }
     }
 
-    private static boolean isOutConnected() {
-        return Minecraft.mc.socket != null && Minecraft.mc.socket.isConnected();
+
+    public static void sendBlock(int packet, int x, int y, int z, int blockId) throws IOException {
+        synchronized (writeLock) {
+            out.writeByte(packet);
+            out.writeInt(x); out.writeInt(y); out.writeInt(z);
+            if (packet == Packets.BLOCK_PLACE) out.writeByte(blockId);
+            out.flush();
+        }
     }
 
-    public static void sendBlock(int packet, int x, int y, int z, int blockId) {
-        if (!isOutConnected()) return;
-        try {
-            synchronized (writeLock) {
-                out.writeByte(packet);
-                out.writeInt(x); out.writeInt(y); out.writeInt(z);
-                if (packet == Packets.BLOCK_PLACE) out.writeByte(blockId);
-                out.flush();
-            }
-        } catch (IOException ignored) {}
-    }
-
-    public static void sendBlock(int packet, int x, int y, int z) {
+    public static void sendBlock(int packet, int x, int y, int z) throws IOException {
         sendBlock(packet, x, y, z, 0);
     }
 
-    public static void sendPos(int packet, double x, double y, double z, float yaw, float pitch, int ping) {
-        if (!isOutConnected()) return;
+    public static void sendPos(int packet, double x, double y, double z, float yaw, float pitch, int ping)
+            throws IOException {
+        synchronized (writeLock) {
+            out.writeByte(packet);
+            out.writeDouble(x); out.writeDouble(y); out.writeDouble(z);
+            out.writeFloat(yaw); out.writeFloat(pitch); out.writeInt(ping);
+            out.flush();
+        }
+    }
+
+    public static void sendKeepalive(long timestamp) throws IOException {
+        synchronized (writeLock) {
+            out.writeByte(Packets.KEEPALIVE);
+            out.writeLong(timestamp);
+            out.writeBoolean(false);
+            out.flush();
+        }
+    }
+
+    public void disconnect() {
+        authenticated = false;
         try {
-            synchronized (writeLock) {
-                out.writeByte(packet);
-                out.writeDouble(x); out.writeDouble(y); out.writeDouble(z);
-                out.writeFloat(yaw); out.writeFloat(pitch); out.writeInt(ping);
-                out.flush();
-            }
+            if (socket != null && !socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
+        try {
+            if (in != null) in.close();
+        } catch (IOException ignored) {}
+        try {
+            if (out != null) out.close();
         } catch (IOException ignored) {}
     }
 
-    public static void sendKeepalive(long timestamp) {
-        if (!isOutConnected()) return;
-        try {
-            synchronized (writeLock) {
-                out.writeByte(Packets.KEEPALIVE);
-                out.writeLong(timestamp);
-                out.flush();
-            }
-        } catch (IOException ignored) {}
+    public static void sendKeepaliveResponse(long serverTimestamp) throws IOException {
+        synchronized (writeLock) {
+            out.writeByte(Packets.KEEPALIVE);
+            out.writeLong(serverTimestamp);
+            out.writeBoolean(true);
+            out.flush();
+        }
     }
 
-    public static void sendChat(String author, String message) {
-        if (!isOutConnected()) return;
-        try {
-            synchronized (writeLock) {
-                out.writeByte(Packets.CHAT);
-                out.writeUTF(author);
-                out.writeUTF(message);
-                out.flush();
-            }
-        } catch (IOException ignored) {}
+    public static void sendChat(String author, String message) throws IOException {
+        synchronized (writeLock) {
+            out.writeByte(Packets.CHAT);
+            out.writeUTF(author);
+            out.writeUTF(message);
+            out.flush();
+        }
     }
 
-    public static void sendSkin(byte[] png) {
-        if (!isOutConnected()) return;
-        try {
-            synchronized (writeLock) {
-                out.writeByte(Packets.SKIN_UPLOAD);
-                out.writeInt(png.length);
-                out.write(png);
-                out.flush();
-            }
-        } catch (IOException ignored) {}
+    public static void sendSkin(byte[] png) throws IOException {
+        synchronized (writeLock) {
+            out.writeByte(Packets.SKIN_UPLOAD);
+            out.writeInt(png.length);
+            out.write(png);
+            out.flush();
+        }
     }
 
     private void uploadSkinIfPresent() {
@@ -302,14 +312,8 @@ public class SocketClient implements Runnable {
             sendSkin(png);
             System.out.println("Uploaded skin from " + p + " (" + png.length + " bytes)");
         } catch (IOException e) {
-            System.err.println("Failed to read/upload skin.png: " + e.getMessage());
+            System.err.println("Failed to read/upload rd-skin.png: " + e.getMessage());
         }
-    }
-
-    public void disconnect() {
-        try {
-            if (socket != null) socket.close();
-        } catch (Exception ignored) {}
     }
 
     public boolean isConnected() {

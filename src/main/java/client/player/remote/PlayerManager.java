@@ -7,14 +7,24 @@ public class PlayerManager {
 
     public Map<String, RemotePlayer> players = new HashMap<>();
 
-    public synchronized void updatePlayer(String username, double x, double y, double z, float yaw, float pitch, int ping) {
+    public synchronized void updatePlayer(String username, double x, double y, double z, float yaw, float pitch) {
         RemotePlayer p = players.get(username);
         if (p == null) {
-            p = new RemotePlayer(username, x, y, z, yaw, ping);
+            p = new RemotePlayer(username, x, y, z, yaw, 0);
             players.put(username, p);
         }
         p.x = x; p.y = y; p.z = z;
-        p.yaw = yaw; p.pitch = pitch; p.ping = ping;
+        p.yaw = yaw; p.pitch = pitch;
+    }
+
+    public synchronized void updatePing(String username, int ping) {
+        RemotePlayer p = players.get(username);
+        if (p == null) {
+            p = new RemotePlayer(username, 0, 0, 0, 0f, ping);
+            players.put(username, p);
+        } else {
+            p.ping = ping;
+        }
     }
 
     public synchronized void setPendingSkin(String username, byte[] png) {

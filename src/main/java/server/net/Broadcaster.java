@@ -5,7 +5,6 @@ import server.Server;
 import server.client.Client;
 import server.client.ChunkTracker;
 
-import java.util.concurrent.ThreadLocalRandom;
 
 public class Broadcaster {
 
@@ -67,31 +66,29 @@ public class Broadcaster {
         }
     }
 
-    public static void broadcastPos(Client sender, double x, double y, double z, float yaw, float pitch, int ping) {
+    public static void broadcastPos(Client sender, double x, double y, double z, float yaw, float pitch) {
         for (Client client : Server.clients) {
             if (client == sender) continue;
-
-            final double sx, sy, sz;
-            if (inRange(client, sender)) {
-                sx = x;
-                sy = y;
-                sz = z;
-            } else {
-                ThreadLocalRandom rng = ThreadLocalRandom.current();
-                sx = rng.nextDouble(-100000, 100000);
-                sy = rng.nextDouble(-100000, 100000);
-                sz = rng.nextDouble(-100000, 100000);
-            }
+            if (!inRange(client, sender)) continue;
 
             client.send(o -> {
                 o.writeByte(Packets.POS);
                 o.writeUTF(sender.getUsername());
-                o.writeDouble(sx);
-                o.writeDouble(sy);
-                o.writeDouble(sz);
+                o.writeDouble(x);
+                o.writeDouble(y);
+                o.writeDouble(z);
                 o.writeFloat(yaw);
                 o.writeFloat(pitch);
-                o.writeInt(ping);
+            });
+        }
+    }
+
+    public static void broadcastPing(Client sender, int pingMs) {
+        for (Client client : Server.clients) {
+            client.send(o -> {
+                o.writeByte(Packets.PING_INFO);
+                o.writeUTF(sender.getUsername());
+                o.writeInt(pingMs);
             });
         }
     }

@@ -573,6 +573,8 @@ public class Minecraft implements Runnable {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     break;
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         }, "KeepAliveThread");

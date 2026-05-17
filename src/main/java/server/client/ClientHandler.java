@@ -209,7 +209,7 @@ public class ClientHandler {
                         double z = in.readDouble();
                         float yaw = in.readFloat();
                         float pitch = in.readFloat();
-                        int ping = in.readInt();
+                        in.readInt();
                         if (!spawned) break;
 
                         long now = System.currentTimeMillis();
@@ -253,19 +253,29 @@ public class ClientHandler {
                         final double fx = x, fz = z;
                         final Client c = client;
                         c.send(o -> chunkTracker.update(fx, fz, o));
-
-                        Broadcaster.broadcastPos(client, x, y, z, yaw, pitch, ping);
+                        Broadcaster.broadcastPos(client, x, y, z, yaw, pitch);
                         break;
                     }
 
                     case Packets.KEEPALIVE: {
                         Server.lastKeepAlive.put(client, System.currentTimeMillis());
-                        long clientTime = in.readLong();
-                        final Client c = client;
-                        c.send(o -> {
-                            o.writeByte(Packets.KEEPALIVE);
-                            o.writeLong(clientTime);
-                        });
+                        long stampedTime = in.readLong();
+                        boolean isResponse = in.readBoolean();
+
+                        if (isResponse) {
+                            long rtt = System.currentTimeMillis() - stampedTime;
+                            if (rtt < 0) rtt = 0;
+                            if (rtt > 60_000) rtt = 60_000;
+                            client.setMeasuredPingMs((int) rtt);
+                        } else {
+                            final Client c = client;
+                            final long t = stampedTime;
+                            c.send(o -> {
+                                o.writeByte(Packets.KEEPALIVE);
+                                o.writeLong(t);
+                                o.writeBoolean(true);
+                            });
+                        }
                         break;
                     }
 
@@ -286,7 +296,8 @@ public class ClientHandler {
                     case Packets.SKIN_UPLOAD: {
                         int len = in.readInt();
                         if (len <= 0 || len > MAX_SKIN_BYTES) {
-                            System.out.println("Disconnecting " + client.getUsername() + ": invalid SKIN_UPLOAD length " + len);
+                            System.out.println("Disconnecting " + client.getUsername()
+                                    + ": invalid SKIN_UPLOAD length " + len);
                             throw new IOException("malformed skin length");
                         }
                         boolean allowed = AntiCheat.checkSkinUpload(client, System.currentTimeMillis());
@@ -294,7 +305,8 @@ public class ClientHandler {
                         in.readFully(png);
                         if (!allowed) break;
                         if (!isValidSkinPng(png)) {
-                            System.out.println("Rejected SKIN_UPLOAD from " + client.getUsername() + ": not a valid 64x64 or 64x32 PNG");
+                            System.out.println("Rejected SKIN_UPLOAD from "
+                                    + client.getUsername() + ": not a valid 64x64 or 64x32 PNG");
                             break;
                         }
                         Server.skins.put(client.getUsername(), png);

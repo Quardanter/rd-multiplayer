@@ -18,4 +18,5 @@ public final class Packets {
     public static final byte SKIN_DATA     = 16;
     public static final byte AUTH_TOKEN    = 17;
     public static final byte TIME_OF_DAY   = 18;
+    public static final byte PING_INFO     = 19;
 }

@@ -30,6 +30,8 @@ public class Client {
     private double skinTokens = 0.0;
     private long lastSkinTime = 0;
 
+    private volatile int measuredPingMs = 0;
+
     public Client(String username, Socket socket, DataOutputStream out) {
         this.username = username;
         this.socket = socket;
@@ -112,6 +114,9 @@ public class Client {
         this.skinTokens = tokens;
         this.lastSkinTime = time;
     }
+
+    public int getMeasuredPingMs() { return measuredPingMs; }
+    public void setMeasuredPingMs(int ms) { this.measuredPingMs = ms; }
 
     @FunctionalInterface
     public interface PacketWriter {

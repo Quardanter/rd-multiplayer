@@ -64,6 +64,8 @@ public class Server {
         System.out.println("Server started on port " + PORT);
         TimeoutHandler.start();
         server.net.TimeBroadcaster.start();
+        server.net.ServerPinger.start();
+        server.net.PingBroadcaster.start();
 
         Scanner scanner = new Scanner(System.in);
         Thread t = new Thread(() -> {
@@ -171,7 +173,6 @@ public class Server {
         d.setProperty("break_rate",      "5.0");
         d.setProperty("render_distance", "8");
         d.setProperty("void_y",          "-32.0");
-        d.setProperty("logs",            "true");
         try (OutputStream out = Files.newOutputStream(PROPERTIES_PATH)) {
             d.store(out, "Server Properties");
         }
