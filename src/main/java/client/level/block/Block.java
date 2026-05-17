@@ -1,6 +1,10 @@
-package client.level;
+package client.level.block;
 
-public class Tile {
+import client.level.FaceTextures;
+import client.level.Level;
+import client.level.Tessellator;
+
+public abstract class Block {
     public final int id;
     public final String name;
     public final FaceTextures faces;
@@ -8,15 +12,18 @@ public class Tile {
     private static final float MIN_V = 0f;
     private static final float MAX_V = 16 / 256f;
 
-    public Tile(int id, String name) {
+    public Block(int id, String name) {
         this(id, name, FaceTextures.uniform(id - 1));
     }
 
-    public Tile(int id, String name, FaceTextures faces) {
+    public Block(int id, String name, FaceTextures faces) {
         this.id = id;
         this.name = name;
         this.faces = faces;
     }
+
+    public abstract void onPlace(int x, int y, int z);
+    public abstract void onBreak(int x, int y, int z);
 
     private static float minU(int col) { return col / 16f; }
     private static float maxU(int col) { return col / 16f + 16 / 256f; }
@@ -27,7 +34,6 @@ public class Tile {
         float y0 = y, y1 = y + 1;
         float z0 = z, z1 = z + 1;
 
-        // BOTTOM (face 0)
         {
             float u0 = minU(faces.col(FaceTextures.BOTTOM));
             float u1 = maxU(faces.col(FaceTextures.BOTTOM));
@@ -36,7 +42,6 @@ public class Tile {
                     u0,MAX_V, u0,MIN_V, u1,MIN_V, u1,MAX_V);
         }
 
-        // TOP (face 1)
         {
             float u0 = minU(faces.col(FaceTextures.TOP));
             float u1 = maxU(faces.col(FaceTextures.TOP));
@@ -45,7 +50,6 @@ public class Tile {
                     u1,MAX_V, u1,MIN_V, u0,MIN_V, u0,MAX_V);
         }
 
-        // NORTH (face 2, -Z)
         {
             float u0 = minU(faces.col(FaceTextures.NORTH));
             float u1 = maxU(faces.col(FaceTextures.NORTH));
@@ -54,7 +58,6 @@ public class Tile {
                     u1,MIN_V, u0,MIN_V, u0,MAX_V, u1,MAX_V);
         }
 
-        // SOUTH (face 3, +Z)
         {
             float u0 = minU(faces.col(FaceTextures.SOUTH));
             float u1 = maxU(faces.col(FaceTextures.SOUTH));
@@ -63,7 +66,6 @@ public class Tile {
                     u0,MIN_V, u0,MAX_V, u1,MAX_V, u1,MIN_V);
         }
 
-        // WEST (face 4, -X)
         {
             float u0 = minU(faces.col(FaceTextures.WEST));
             float u1 = maxU(faces.col(FaceTextures.WEST));
@@ -72,7 +74,6 @@ public class Tile {
                     u1,MIN_V, u0,MIN_V, u0,MAX_V, u1,MAX_V);
         }
 
-        // EAST (face 5, +X)
         {
             float u0 = minU(faces.col(FaceTextures.EAST));
             float u1 = maxU(faces.col(FaceTextures.EAST));

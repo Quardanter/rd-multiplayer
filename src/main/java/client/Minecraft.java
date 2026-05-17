@@ -329,6 +329,7 @@ public class Minecraft implements Runnable {
                 if (Mouse.getEventButtonState() && hitResult != null) {
                     if (Mouse.getEventButton() == 0) {
                         SocketClient.sendBlock(Packets.BLOCK_BREAK, hitResult.x, hitResult.y, hitResult.z);
+
                     }
                     if (Mouse.getEventButton() == 1) {
                         int x = hitResult.x, y = hitResult.y, z = hitResult.z;

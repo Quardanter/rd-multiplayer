@@ -1,6 +1,8 @@
 package client.level;
 
 import client.Textures;
+import client.level.block.BlockRegistry;
+import client.level.block.Block;
 import client.phys.AABB;
 
 import static org.lwjgl.opengl.GL11.*;
@@ -49,10 +51,10 @@ public class Chunk {
                     int blockId = this.level.getRawBlock(x, y, z) & 0xFF;
                     if (blockId == 0) continue;
 
-                    Tile tile = Blocks.get(blockId);
-                    if (tile == null) continue;
+                    Block block = BlockRegistry.get(blockId);
+                    if (block == null) continue;
 
-                    tile.render(TESSELLATOR, this.level, layer, x, y, z);
+                    block.render(TESSELLATOR, this.level, layer, x, y, z);
                 }
             }
         }

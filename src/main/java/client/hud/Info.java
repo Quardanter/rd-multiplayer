@@ -1,9 +1,9 @@
 package client.hud;
 
 import client.*;
-import client.level.Blocks;
+import client.level.block.BlockRegistry;
 import client.level.FaceTextures;
-import client.level.Tile;
+import client.level.block.Block;
 import client.player.local.LocalPlayer;
 import client.player.remote.RemotePlayer;
 import org.lwjgl.input.Keyboard;
@@ -113,8 +113,8 @@ public class Info {
             int iconX0 = sx + 5, iconY0 = sy + 5;
             int iconX1 = sx + SLOT - 5, iconY1 = sy + SLOT - 5;
 
-            assert Blocks.get(BLOCKS[i]) != null;
-            drawBlockSideIcon(Blocks.get(Blocks.get(BLOCKS[i]).id), iconX0, iconY0, iconX1, iconY1);
+            assert BlockRegistry.get(BLOCKS[i]) != null;
+            drawBlockSideIcon(BlockRegistry.get(BlockRegistry.get(BLOCKS[i]).id), iconX0, iconY0, iconX1, iconY1);
             glDisable(GL_TEXTURE_2D);
 
             glEnable(GL_TEXTURE_2D);
@@ -122,7 +122,7 @@ public class Info {
             font.drawString(String.valueOf(i + 1), sx + 3, sy + 3, true);
 
             if (i == selected) {
-                Tile t = Blocks.get(BLOCKS[i]);
+                Block t = BlockRegistry.get(BLOCKS[i]);
 
                 if (t != null)
                     font.drawString(t.name, sx + (SLOT - font.getStringWidth(t.name)) / 2, y - font.getStringHeight() - 3, Color.WHITE, true);
@@ -178,14 +178,14 @@ public class Info {
         rect(x1 - t, y0, x1, y1);
     }
 
-    private void drawBlockSideIcon(Tile tile, int x0, int y0, int x1, int y1) {
-        if (tile == null) return;
+    private void drawBlockSideIcon(Block block, int x0, int y0, int x1, int y1) {
+        if (block == null) return;
 
         if (terrainTexture == -1) {
             terrainTexture = Textures.loadTexture("/client/textures/terrain.png", GL_NEAREST);
         }
 
-        int col = tile.faces.col(FaceTextures.NORTH);
+        int col = block.faces.col(FaceTextures.NORTH);
         float u0 = col / 16f;
         float u1 = u0 + 16 / 256f;
         float v0 = 0f;

@@ -1,6 +1,8 @@
 package client.level;
 
 import client.*;
+import client.level.block.BlockRegistry;
+import client.level.block.Block;
 import client.player.remote.PlayerManager;
 import client.phys.AABB;
 import client.player.local.LocalPlayer;
@@ -166,13 +168,13 @@ public class LevelRenderer implements LevelListener {
                     glPushName(z);
                     if (level.isSolidTile(x, y, z)) {
                         int blockId = level.getRawBlock(x, y, z) & 0xFF;
-                        Tile tile = Blocks.get(blockId);
-                        if (tile != null) {
+                        Block block = BlockRegistry.get(blockId);
+                        if (block != null) {
                             glPushName(0);
                             for (int face = 0; face < 6; face++) {
                                 glPushName(face);
                                 tessellator.init();
-                                tile.renderFace(tessellator, x, y, z, face);
+                                block.renderFace(tessellator, x, y, z, face);
                                 tessellator.flush();
                                 glPopName();
                             }
@@ -189,15 +191,15 @@ public class LevelRenderer implements LevelListener {
 
     public void renderHit(HitResult hitResult) {
         int blockId = level.getRawBlock(hitResult.x, hitResult.y, hitResult.z) & 0xFF;
-        Tile tile = Blocks.get(blockId);
-        if (tile == null) return;
+        Block block = BlockRegistry.get(blockId);
+        if (block == null) return;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_CURRENT_BIT);
         glColor4f(1f, 1f, 1f,
                 (float) Math.sin(System.currentTimeMillis() / 100.0) * 0.2f + 0.4f);
         tessellator.init();
-        tile.renderFace(tessellator, hitResult.x, hitResult.y, hitResult.z, hitResult.face);
+        block.renderFace(tessellator, hitResult.x, hitResult.y, hitResult.z, hitResult.face);
         tessellator.flush();
         glDisable(GL_BLEND);
     }
