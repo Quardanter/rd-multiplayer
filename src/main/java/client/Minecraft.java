@@ -394,7 +394,9 @@ public class Minecraft implements Runnable {
             pick(pt);
 
             while (Mouse.next()) {
-                localPlayer.turn(Mouse.getEventDX(), Mouse.getEventDY());
+                if(Mouse.isGrabbed()) {
+                    localPlayer.turn(Mouse.getEventDX(), Mouse.getEventDY());
+                }
 
                 if (Mouse.getEventButtonState() && hitResult != null) {
                     if (Mouse.getEventButton() == 0) {
