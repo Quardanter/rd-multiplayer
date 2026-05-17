@@ -5,6 +5,8 @@ import client.FontRenderer;
 import client.Minecraft;
 import client.Textures;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
 import java.util.prefs.Preferences;
 import client.gui.screen.Screen;
 import client.gui.screen.components.ButtonComponent;
@@ -20,6 +22,17 @@ public class ServerSelectScreen extends Screen {
     private long lastBlink = System.currentTimeMillis();
     private boolean cursorVisible = true;
     private boolean prefsLoaded = false;
+    private boolean fieldSelected = false;
+
+    private static final long BACKSPACE_DELAY = 400L;
+    private static final long BACKSPACE_REPEAT = 50L;
+    private long backspaceStart = 0;
+    private long lastBackspace = 0;
+
+    private int heldKey = 0;
+    private char heldChar = 0;
+    private long heldStart = 0;
+    private long lastHeld = 0;
 
     @Override
     public void init() {
@@ -95,6 +108,9 @@ public class ServerSelectScreen extends Screen {
         long now = System.currentTimeMillis();
         if (now - lastBlink > 530) { cursorVisible = !cursorVisible; lastBlink = now; }
 
+        handleBackspace();
+        handleKeyRepeat();
+
         int mx = Mouse.getX();
         int my = height - Mouse.getY() - 1;
 
@@ -103,6 +119,8 @@ public class ServerSelectScreen extends Screen {
                 fUsername.focused = fUsername.contains(mx, my);
                 fServer.focused = fServer.contains(mx, my);
                 fPort.focused = fPort.contains(mx, my);
+                fieldSelected = false;
+                heldKey = 0; heldChar = 0; heldStart = 0;
                 if (btnConnect.contains(mx, my)) onConnect();
                 if (btnBack.contains(mx, my)) onBack();
             }
@@ -114,31 +132,73 @@ public class ServerSelectScreen extends Screen {
             if (Keyboard.getEventKeyState() && focused != null) {
                 int key = Keyboard.getEventKey();
                 char ch = Keyboard.getEventCharacter();
-                if (key == Keyboard.KEY_BACK) {
-                    if (focused.value.length() > 0)
+                boolean ctrl = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+                if (ctrl) {
+                    heldKey = 0; heldChar = 0; heldStart = 0;
+                    if (key == Keyboard.KEY_A) {
+                        fieldSelected = true;
+                    } else if (key == Keyboard.KEY_C) {
+                        try {
+                            Toolkit.getDefaultToolkit().getSystemClipboard()
+                                    .setContents(new StringSelection(focused.value.toString()), null);
+                        } catch (Exception ignored) {}
+                    } else if (key == Keyboard.KEY_V) {
+                        try {
+                            String clip = (String) Toolkit.getDefaultToolkit().getSystemClipboard()
+                                    .getData(DataFlavor.stringFlavor);
+                            if (fieldSelected) { focused.value.setLength(0); fieldSelected = false; }
+                            if (focused == fPort) {
+                                for (char c : clip.toCharArray())
+                                    if (Character.isDigit(c) && focused.value.length() < 5)
+                                        focused.value.append(c);
+                            } else {
+                                focused.value.append(clip);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                } else if (key == Keyboard.KEY_BACK) {
+                    heldKey = 0; heldChar = 0; heldStart = 0;
+                    if (fieldSelected) { focused.value.setLength(0); fieldSelected = false; }
+                    else if (focused.value.length() > 0)
                         focused.value.deleteCharAt(focused.value.length() - 1);
+                    backspaceStart = System.currentTimeMillis();
+                    lastBackspace = backspaceStart;
                 } else if (key == Keyboard.KEY_TAB) {
+                    heldKey = 0; heldChar = 0; heldStart = 0;
                     fUsername.focused = false; fServer.focused = false; fPort.focused = false;
+                    fieldSelected = false;
                     if (focused == fUsername) fServer.focused = true;
                     else if (focused == fServer) fPort.focused = true;
                     else fUsername.focused = true;
                     focused = null;
                 } else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
+                    heldKey = 0; heldChar = 0; heldStart = 0;
                     onConnect();
                 } else if (ch >= 32 && ch != 127) {
+                    if (fieldSelected) { focused.value.setLength(0); fieldSelected = false; }
+                    boolean accepted;
                     if (focused == fPort) {
-                        if (Character.isDigit(ch) && focused.value.length() < 5)
-                            focused.value.append(ch);
+                        accepted = Character.isDigit(ch) && focused.value.length() < 5;
+                        if (accepted) focused.value.append(ch);
                     } else {
                         focused.value.append(ch);
+                        accepted = true;
+                    }
+                    if (accepted) {
+                        heldKey = key;
+                        heldChar = ch;
+                        heldStart = System.currentTimeMillis();
+                        lastHeld = heldStart;
+                    } else {
+                        heldKey = 0; heldChar = 0; heldStart = 0;
                     }
                 }
             }
         }
 
-        drawField(font, fUsername, mx, my, cursorVisible);
-        drawField(font, fServer, mx, my, cursorVisible);
-        drawField(font, fPort, mx, my, cursorVisible);
+        drawField(font, fUsername, mx, my, cursorVisible, fUsername.focused && fieldSelected);
+        drawField(font, fServer, mx, my, cursorVisible, fServer.focused && fieldSelected);
+        drawField(font, fPort, mx, my, cursorVisible, fPort.focused && fieldSelected);
 
         glDisable(GL_TEXTURE_2D);
         for (ButtonComponent btn : new ButtonComponent[]{btnConnect, btnBack}) {
@@ -171,7 +231,51 @@ public class ServerSelectScreen extends Screen {
         glMatrixMode(GL_MODELVIEW);
     }
 
-    private void drawField(FontRenderer font, FieldComponent f, int mx, int my, boolean cursor) {
+    private void handleKeyRepeat() {
+        FieldComponent focused = fUsername != null && fUsername.focused ? fUsername
+                : fServer != null && fServer.focused ? fServer
+                : fPort != null && fPort.focused ? fPort : null;
+
+        if (focused == null || fieldSelected || heldKey == 0 || !Keyboard.isKeyDown(heldKey)) {
+            heldKey = 0; heldChar = 0; heldStart = 0;
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (heldStart == 0 || now - heldStart < BACKSPACE_DELAY) return;
+
+        if (now - lastHeld >= BACKSPACE_REPEAT) {
+            if (focused == fPort) {
+                if (Character.isDigit(heldChar) && focused.value.length() < 5)
+                    focused.value.append(heldChar);
+            } else {
+                focused.value.append(heldChar);
+            }
+            lastHeld = now;
+        }
+    }
+
+    private void handleBackspace() {
+        FieldComponent focused = fUsername != null && fUsername.focused ? fUsername
+                : fServer != null && fServer.focused ? fServer
+                : fPort != null && fPort.focused ? fPort : null;
+
+        if (focused == null || fieldSelected || !Keyboard.isKeyDown(Keyboard.KEY_BACK)) {
+            backspaceStart = 0;
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (backspaceStart == 0 || now - backspaceStart < BACKSPACE_DELAY) return;
+
+        if (now - lastBackspace >= BACKSPACE_REPEAT) {
+            if (focused.value.length() > 0)
+                focused.value.deleteCharAt(focused.value.length() - 1);
+            lastBackspace = now;
+        }
+    }
+
+    private void drawField(FontRenderer font, FieldComponent f, int mx, int my, boolean cursor, boolean selected) {
         boolean hov = f.contains(mx, my);
         glDisable(GL_TEXTURE_2D);
         glColor4f(0.1f, 0.1f, 0.1f, f.focused ? 0.9f : 0.7f);
@@ -186,10 +290,21 @@ public class ServerSelectScreen extends Screen {
         glVertex2f(f.x, f.y); glVertex2f(f.x + f.w, f.y);
         glVertex2f(f.x + f.w, f.y + f.h); glVertex2f(f.x, f.y + f.h);
         glEnd();
+        if (f.focused && selected && !f.value.isEmpty()) {
+            int lh = font.getStringHeight();
+            int selX = f.x + 6;
+            int selW = font.getStringWidth(f.value.toString());
+            int selY = f.y + (f.h - lh) / 2;
+            glColor4f(0.2f, 0.6f, 1f, 0.5f);
+            glBegin(GL_QUADS);
+            glVertex2f(selX, selY); glVertex2f(selX + selW, selY);
+            glVertex2f(selX + selW, selY + lh); glVertex2f(selX, selY + lh);
+            glEnd();
+        }
         glEnable(GL_TEXTURE_2D);
         int lh = font.getStringHeight();
         font.drawString(f.label, f.x, f.y - lh - 2, Color.LIGHT_GRAY, true);
-        font.drawString(f.value.toString() + (f.focused && cursor ? "|" : ""), f.x + 6, f.y + (f.h - lh) / 2, Color.WHITE, true);
+        font.drawString(f.value.toString() + (f.focused && cursor && !selected ? "|" : ""), f.x + 6, f.y + (f.h - lh) / 2, Color.WHITE, true);
         glDisable(GL_TEXTURE_2D);
     }
 

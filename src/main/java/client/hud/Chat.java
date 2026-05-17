@@ -22,6 +22,8 @@ public class Chat {
 
     private static final long BACKSPACE_DELAY = 400L;
     private static final long BACKSPACE_REPEAT = 50L;
+    private static final long KEY_DELAY = 400L;
+    private static final long KEY_REPEAT = 50L;
 
     private final FontRenderer font;
     private final List<ChatMessage> messages = new ArrayList<>();
@@ -39,6 +41,11 @@ public class Chat {
     private long backspaceStart;
     private long lastBackspace;
 
+    private int heldKey = 0;
+    private char heldChar = 0;
+    private long heldStart = 0;
+    private long lastHeld = 0;
+
     public Chat(FontRenderer font, int maxMessages, int x, int y, int width, int height) {
         this.font = font;
         this.maxMessages = maxMessages;
@@ -53,6 +60,7 @@ public class Chat {
     public void render(int displayWidth, int displayHeight) {
         if(!Minecraft.mc.info.hudEnabled) return;
         handleBackspace();
+        handleKeyRepeat();
 
         setupRender(displayWidth, displayHeight);
 
@@ -162,6 +170,15 @@ public class Chat {
             }
 
             input += character;
+
+            heldKey = key;
+            heldChar = character;
+            heldStart = System.currentTimeMillis();
+            lastHeld = heldStart;
+        } else {
+            heldKey = 0;
+            heldChar = 0;
+            heldStart = 0;
         }
     }
 
@@ -193,6 +210,23 @@ public class Chat {
         }
     }
 
+    private void handleKeyRepeat() {
+        if (!toggled || selected || heldKey == 0 || !Keyboard.isKeyDown(heldKey)) {
+            heldKey = 0;
+            heldChar = 0;
+            heldStart = 0;
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (heldStart == 0 || now - heldStart < KEY_DELAY) return;
+
+        if (now - lastHeld >= KEY_REPEAT) {
+            input += heldChar;
+            lastHeld = now;
+        }
+    }
+
     private void handleBackspace() {
         if (!toggled || !Keyboard.isKeyDown(Keyboard.KEY_BACK) || selected) {
             backspaceStart = 0;
@@ -201,7 +235,7 @@ public class Chat {
 
         long now = System.currentTimeMillis();
 
-        if (now - backspaceStart < BACKSPACE_DELAY) {
+        if (backspaceStart == 0 || now - backspaceStart < BACKSPACE_DELAY) {
             return;
         }
 
