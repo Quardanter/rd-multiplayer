@@ -47,7 +47,7 @@ public class MenuScreen extends Screen {
     @Override
     public void render(FontRenderer font, int width, int height) {
         if (bg == -1) {
-            bg = Textures.loadTexture("/client/textures/background.png", GL_NEAREST);
+            bg = Textures.loadTexture("/client/textures/menu_background.png", GL_NEAREST);
         }
 
         File skinFile = new File("skins/skin.png");
