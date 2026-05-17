@@ -23,7 +23,7 @@ public class Info {
 
     private final FontRenderer font;
     private int selected;
-    private boolean hudEnabled = true;
+    public boolean hudEnabled = true;
 
     private int terrainTexture = -1;
 

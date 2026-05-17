@@ -1,5 +1,6 @@
 package client.hud;
 
+import client.Minecraft;
 import client.Textures;
 
 import static org.lwjgl.opengl.GL11.*;
@@ -13,6 +14,7 @@ public class Crosshair {
     }
 
     public void render(int w, int h) {
+        if(!Minecraft.mc.info.hudEnabled) return;
         int x = w / 2 - size / 2;
         int y = h / 2 - size / 2;
 
