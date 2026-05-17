@@ -6,13 +6,13 @@ import client.level.block.impl.TntBlock;
 
 public final class BlockRegistry {
     public static final Block AIR = null;
-    public static final Block GRASS = new StandardBlock(1, "Grass");
-    public static final Block COBBLE = new StandardBlock(2, "Cobblestone");
-    public static final Block DIRT = new StandardBlock(3, "Dirt");
-    public static final Block OBSIDIAN = new StandardBlock(4, "Obsidian");
-    public static final Block SAND = new StandardBlock(5, "Sand");
-    public static final Block BRICKS = new StandardBlock(6, "Bricks");
-    public static final Block TNT = new TntBlock(7, "TNT", FaceTextures.column(8, 6, 7));
+    public static final Block GRASS = new StandardBlock(1, "Grass", FaceTextures.column(0,1,3));
+    public static final Block COBBLE = new StandardBlock(2, "Cobblestone", 2);
+    public static final Block DIRT = new StandardBlock(3, "Dirt",3);
+    public static final Block OBSIDIAN = new StandardBlock(4, "Obsidian", 4);
+    public static final Block SAND = new StandardBlock(5, "Sand", 5);
+    public static final Block BRICKS = new StandardBlock(6, "Bricks", 6);
+    public static final Block TNT = new TntBlock(7, "TNT", FaceTextures.column(9, 7, 8));
 
     //these mfs have to be in order!!
     private static final Block[] BLOCKS = { AIR, GRASS, COBBLE, DIRT, OBSIDIAN, SAND, BRICKS, TNT };

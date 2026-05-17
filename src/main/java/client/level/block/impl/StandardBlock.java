@@ -4,12 +4,12 @@ import client.level.FaceTextures;
 import client.level.block.Block;
 
 public class StandardBlock extends Block {
-    public StandardBlock(int id, String name) {
-        super(id, name);
+    public StandardBlock(int id, String name, int atlasId) {
+        super(id, name, atlasId);
     }
 
     public StandardBlock(int id, String name, FaceTextures faces) {
-        super(id, name);
+        super(id, name, faces);
     }
 
     @Override

@@ -12,8 +12,8 @@ public abstract class Block {
     private static final float MIN_V = 0f;
     private static final float MAX_V = 16 / 256f;
 
-    public Block(int id, String name) {
-        this(id, name, FaceTextures.uniform(id - 1));
+    public Block(int id, String name, int atlasId) {
+        this(id, name, FaceTextures.uniform(atlasId));
     }
 
     public Block(int id, String name, FaceTextures faces) {
