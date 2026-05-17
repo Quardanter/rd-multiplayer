@@ -1,5 +1,7 @@
 package client;
 
+import client.gui.LoadingScreen;
+import client.gui.Screen;
 import client.hud.Chat;
 import client.hud.Crosshair;
 import client.hud.Info;
@@ -65,15 +67,13 @@ public class Minecraft implements Runnable {
     public byte[] pendingBlocks = null;
     public volatile boolean levelUpdatePending = false;
 
-    public volatile String loadingText = "";
-    public volatile Color loadingColor = Color.WHITE;
-
     private FontRenderer font;
     private Font minecraftFont;
     public Chat chat;
     public SocketClient socket;
     public Thread socketThread;
     public PlayerManager playerManager;
+    public Screen currentScreen;
 
     private Crosshair crosshair;
     public Info info;
@@ -144,8 +144,6 @@ public class Minecraft implements Runnable {
 
     @Override
     public void run() {
-        socketThread.start();
-
         try {
             init();
         } catch (Exception e) {
@@ -153,13 +151,30 @@ public class Minecraft implements Runnable {
             System.exit(0);
         }
 
-        System.out.println("Waiting for chunks from server...");
+        currentScreen = new LoadingScreen();
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        currentScreen.render(font, width, height);
+        Display.update();
+
+        socketThread.start();
+
         while (!levelReady) {
+            if (Display.isCloseRequested()) destroy();
             if (levelUpdatePending) {
                 applyPendingLevel();
                 break;
             }
-            renderLoadingScreen();
+            if (Display.wasResized()) {
+                width = Display.getWidth();
+                height = Display.getHeight();
+                if (height <= 0) height = 1;
+                glViewport(0, 0, width, height);
+            }
+            glClearColor(0, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            currentScreen.render(font, width, height);
+            Display.update();
             try { Thread.sleep(16); } catch (InterruptedException ignored) {}
         }
 
@@ -214,6 +229,7 @@ public class Minecraft implements Runnable {
         this.levelRenderer.rebuildAll();
         levelUpdatePending = false;
         System.out.println("Level loaded from server (legacy LEVEL_DATA)!");
+        currentScreen = null;
     }
 
     private void tick() throws IOException {
@@ -281,15 +297,15 @@ public class Minecraft implements Runnable {
     }
 
     private void render(float pt) throws IOException {
+        glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         boolean worldReady = (levelReady || !levelUpdatePending)
                 && level != null && levelRenderer != null && localPlayer != null
                 && level.hasAnyChunk();
 
-        if (worldReady) {
+        if (worldReady && currentScreen == null) {
             localPlayer.turn(Mouse.getDX(), Mouse.getDY());
-
             pick(pt);
 
             while (Mouse.next()) {
@@ -343,9 +359,8 @@ public class Minecraft implements Runnable {
             crosshair.render(width, height);
             info.render(width, height);
             chat.render(width, height);
-        } else {
-            glClearColor(0, 0, 0, 1);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        } else if (currentScreen != null) {
+            currentScreen.render(font, width, height);
         }
 
         Display.update();
@@ -366,46 +381,6 @@ public class Minecraft implements Runnable {
         }, "KeepAliveThread");
         t.setDaemon(true);
         t.start();
-    }
-
-    private void renderLoadingScreen() {
-        if (loadingBackground == -1) {
-            loadingBackground = Textures.loadTexture("/client/textures/background.png", GL_NEAREST);
-        }
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix(); glLoadIdentity();
-        glOrtho(0, width, height, 0, -1, 1);
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix(); glLoadIdentity();
-
-        glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
-        glEnable(GL_TEXTURE_2D); glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        glColor4f(1f, 1f, 1f, 1f);
-        Textures.bind(loadingBackground);
-        glBegin(GL_QUADS);
-        glTexCoord2f(0, 0); glVertex2f(0, 0);
-        glTexCoord2f(1, 0); glVertex2f(width, 0);
-        glTexCoord2f(1, 1); glVertex2f(width, height);
-        glTexCoord2f(0, 1); glVertex2f(0, height);
-        glEnd();
-
-        int textWidth = font.getStringWidth(loadingText);
-        int textHeight = font.getStringHeight();
-        int tx = (width / 2) - (textWidth / 2);
-        int ty = (height / 2) - (textHeight / 2);
-        glColor4f(1f, 1f, 1f, 1f);
-        font.drawString(loadingText, tx, ty, loadingColor, true);
-
-        glDisable(GL_BLEND); glEnable(GL_DEPTH_TEST); glEnable(GL_CULL_FACE);
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION); glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-
-        Display.update();
     }
 
     public PlayerManager getPlayerManager() { return playerManager; }

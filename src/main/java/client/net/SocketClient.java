@@ -1,6 +1,7 @@
 package client.net;
 
 import client.Minecraft;
+import client.gui.LoadingScreen;
 import client.level.Level;
 import global.Packets;
 
@@ -32,8 +33,10 @@ public class SocketClient implements Runnable {
     }
 
     private void setLoading(String text, Color color) {
-        Minecraft.mc.loadingText = text;
-        Minecraft.mc.loadingColor = color;
+        if(Minecraft.mc.currentScreen instanceof LoadingScreen) {
+            ((LoadingScreen) Minecraft.mc.currentScreen).loadingText = text;
+            ((LoadingScreen) Minecraft.mc.currentScreen).loadingColor = color;
+        }
     }
 
     @Override
