@@ -7,6 +7,7 @@ import client.Textures;
 import client.player.local.LocalPlayer;
 import client.player.remote.PlayerManager;
 import client.player.remote.RemotePlayer;
+import client.world.WorldTime;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,15 @@ public class PlayerRenderer {
 
     public PlayerRenderer(Tessellator tessellator) {
         this.tessellator = tessellator;
+    }
+
+    private static void tintColor(Tessellator t, float r, float g, float b) {
+        float[] tint = WorldTime.ambientLight();
+        final float floor = 0.12f;
+        float tr = Math.max(tint[0], floor);
+        float tg = Math.max(tint[1], floor);
+        float tb = Math.max(tint[2], floor);
+        t.color(r * tr, g * tg, b * tb);
     }
 
 
@@ -351,7 +361,7 @@ public class PlayerRenderer {
     }
 
     private void renderFaceQuad(float x0, float y0, float x1, float y1, float z, float r, float g, float b) {
-        tessellator.color(r, g, b);
+        tintColor(tessellator, r, g, b);
         tessellator.vertex(x0, y0, z);
         tessellator.vertex(x1, y0, z);
         tessellator.vertex(x1, y1, z);
@@ -361,7 +371,7 @@ public class PlayerRenderer {
     private void renderBox(float x0, float y0, float z0,
                            float x1, float y1, float z1,
                            float r, float g, float b) {
-        tessellator.color(r, g, b);
+        tintColor(tessellator, r, g, b);
         tessellator.vertex(x0, y0, z0); tessellator.vertex(x1, y0, z0);
         tessellator.vertex(x1, y0, z1); tessellator.vertex(x0, y0, z1);
         tessellator.vertex(x0, y1, z0); tessellator.vertex(x1, y1, z0);
@@ -377,7 +387,7 @@ public class PlayerRenderer {
     }
 
     private void renderSkinBox(float x0, float y0, float z0, float x1, float y1, float z1, float[][] uv) {
-        tessellator.color(1f, 1f, 1f);
+        tintColor(tessellator, 1f, 1f, 1f);
 
         float u0 = uv[0][0], v0 = uv[0][1], u1 = uv[0][2], v1 = uv[0][3];
         tessellator.texture(u0, v0); tessellator.vertex(x0, y0, z0);
