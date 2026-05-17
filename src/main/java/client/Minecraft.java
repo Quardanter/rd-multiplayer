@@ -156,6 +156,29 @@ public class Minecraft implements Runnable {
         this.currentScreen = new LoadingScreen();
     }
 
+    public void disconnect() {
+        if (socket != null) {
+            socket.disconnect();
+            socket = null;
+        }
+        if (socketThread != null) {
+            socketThread.interrupt();
+            socketThread = null;
+        }
+
+        level = null;
+        levelRenderer = null;
+        localPlayer = null;
+        camera = null;
+        playerManager = null;
+        levelReady = false;
+        levelUpdatePending = false;
+
+        glClearColor(0, 0, 0, 1);
+        Mouse.setGrabbed(false);
+        currentScreen = new MenuScreen();
+    }
+
     public void init() throws LWJGLException {
         Display.setDisplayMode(new DisplayMode(width, height));
         Display.setResizable(true);
@@ -258,6 +281,12 @@ public class Minecraft implements Runnable {
 
         try {
             while (!Display.isCloseRequested()) {
+                if (socket == null || !socket.isConnected()) {
+                    disconnect();
+                    runMenuLoop();
+                    return;
+                }
+
                 if (Display.wasResized()) {
                     width = Display.getWidth();
                     height = Display.getHeight();
@@ -289,6 +318,23 @@ public class Minecraft implements Runnable {
         } finally {
             destroy();
         }
+    }
+
+    private void runMenuLoop() {
+        while (!Display.isCloseRequested()) {
+            if (Display.wasResized()) {
+                width = Display.getWidth();
+                height = Display.getHeight();
+                if (height <= 0) height = 1;
+                glViewport(0, 0, width, height);
+            }
+            glClearColor(0, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            currentScreen.render(font, width, height);
+            Display.update();
+            try { Thread.sleep(16); } catch (InterruptedException ignored) {}
+        }
+        destroy();
     }
 
     private void applyPendingLevel() {
@@ -527,8 +573,6 @@ public class Minecraft implements Runnable {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     break;
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
             }
         }, "KeepAliveThread");

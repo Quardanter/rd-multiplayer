@@ -36,7 +36,7 @@ public class SocketClient implements Runnable {
     }
 
     private void setLoading(String text, Color color) {
-        if(Minecraft.mc.currentScreen instanceof LoadingScreen) {
+        if (Minecraft.mc.currentScreen instanceof LoadingScreen) {
             ((LoadingScreen) Minecraft.mc.currentScreen).loadingText = text;
             ((LoadingScreen) Minecraft.mc.currentScreen).loadingColor = color;
         }
@@ -54,7 +54,6 @@ public class SocketClient implements Runnable {
 
             setLoading("Creating network streams...", Color.WHITE);
 
-            // lookup stored tokens and authenticate
             String storedToken = AuthStore.getToken(serverId, username);
             if (storedToken == null) storedToken = "";
 
@@ -98,8 +97,7 @@ public class SocketClient implements Runnable {
                     case Packets.AUTH_TOKEN: {
                         String newToken = in.readUTF();
                         AuthStore.saveToken(serverId, username, newToken);
-                        System.out.println("Saved new auth token for " + username
-                                + " on " + serverId);
+                        System.out.println("Saved new auth token for " + username + " on " + serverId);
                         break;
                     }
 
@@ -225,57 +223,75 @@ public class SocketClient implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
             setLoading("Connection error: " + e.getMessage(), Color.RED);
+            Minecraft.mc.disconnect();
         }
     }
 
-
-    public static void sendBlock(int packet, int x, int y, int z, int blockId) throws IOException {
-        synchronized (writeLock) {
-            out.writeByte(packet);
-            out.writeInt(x); out.writeInt(y); out.writeInt(z);
-            if (packet == Packets.BLOCK_PLACE) out.writeByte(blockId);
-            out.flush();
-        }
+    private static boolean isOutConnected() {
+        return Minecraft.mc.socket != null && Minecraft.mc.socket.isConnected();
     }
 
-    public static void sendBlock(int packet, int x, int y, int z) throws IOException {
+    public static void sendBlock(int packet, int x, int y, int z, int blockId) {
+        if (!isOutConnected()) return;
+        try {
+            synchronized (writeLock) {
+                out.writeByte(packet);
+                out.writeInt(x); out.writeInt(y); out.writeInt(z);
+                if (packet == Packets.BLOCK_PLACE) out.writeByte(blockId);
+                out.flush();
+            }
+        } catch (IOException ignored) {}
+    }
+
+    public static void sendBlock(int packet, int x, int y, int z) {
         sendBlock(packet, x, y, z, 0);
     }
 
-    public static void sendPos(int packet, double x, double y, double z, float yaw, float pitch, int ping)
-            throws IOException {
-        synchronized (writeLock) {
-            out.writeByte(packet);
-            out.writeDouble(x); out.writeDouble(y); out.writeDouble(z);
-            out.writeFloat(yaw); out.writeFloat(pitch); out.writeInt(ping);
-            out.flush();
-        }
+    public static void sendPos(int packet, double x, double y, double z, float yaw, float pitch, int ping) {
+        if (!isOutConnected()) return;
+        try {
+            synchronized (writeLock) {
+                out.writeByte(packet);
+                out.writeDouble(x); out.writeDouble(y); out.writeDouble(z);
+                out.writeFloat(yaw); out.writeFloat(pitch); out.writeInt(ping);
+                out.flush();
+            }
+        } catch (IOException ignored) {}
     }
 
-    public static void sendKeepalive(long timestamp) throws IOException {
-        synchronized (writeLock) {
-            out.writeByte(Packets.KEEPALIVE);
-            out.writeLong(timestamp);
-            out.flush();
-        }
+    public static void sendKeepalive(long timestamp) {
+        if (!isOutConnected()) return;
+        try {
+            synchronized (writeLock) {
+                out.writeByte(Packets.KEEPALIVE);
+                out.writeLong(timestamp);
+                out.flush();
+            }
+        } catch (IOException ignored) {}
     }
 
-    public static void sendChat(String author, String message) throws IOException {
-        synchronized (writeLock) {
-            out.writeByte(Packets.CHAT);
-            out.writeUTF(author);
-            out.writeUTF(message);
-            out.flush();
-        }
+    public static void sendChat(String author, String message) {
+        if (!isOutConnected()) return;
+        try {
+            synchronized (writeLock) {
+                out.writeByte(Packets.CHAT);
+                out.writeUTF(author);
+                out.writeUTF(message);
+                out.flush();
+            }
+        } catch (IOException ignored) {}
     }
 
-    public static void sendSkin(byte[] png) throws IOException {
-        synchronized (writeLock) {
-            out.writeByte(Packets.SKIN_UPLOAD);
-            out.writeInt(png.length);
-            out.write(png);
-            out.flush();
-        }
+    public static void sendSkin(byte[] png) {
+        if (!isOutConnected()) return;
+        try {
+            synchronized (writeLock) {
+                out.writeByte(Packets.SKIN_UPLOAD);
+                out.writeInt(png.length);
+                out.write(png);
+                out.flush();
+            }
+        } catch (IOException ignored) {}
     }
 
     private void uploadSkinIfPresent() {
@@ -286,8 +302,14 @@ public class SocketClient implements Runnable {
             sendSkin(png);
             System.out.println("Uploaded skin from " + p + " (" + png.length + " bytes)");
         } catch (IOException e) {
-            System.err.println("Failed to read/upload rd-skin.png: " + e.getMessage());
+            System.err.println("Failed to read/upload skin.png: " + e.getMessage());
         }
+    }
+
+    public void disconnect() {
+        try {
+            if (socket != null) socket.close();
+        } catch (Exception ignored) {}
     }
 
     public boolean isConnected() {

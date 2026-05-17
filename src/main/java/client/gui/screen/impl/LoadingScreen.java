@@ -1,34 +1,15 @@
 package client.gui.screen.impl;
 
 import client.FontRenderer;
+import client.Minecraft;
 import client.Textures;
 import client.gui.screen.Screen;
+import client.gui.screen.components.ButtonComponent;
+import org.lwjgl.input.Mouse;
 
 import java.awt.*;
 
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL11.GL_BLEND;
-import static org.lwjgl.opengl.GL11.GL_CULL_FACE;
-import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
-import static org.lwjgl.opengl.GL11.GL_MODELVIEW;
-import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA;
-import static org.lwjgl.opengl.GL11.GL_PROJECTION;
-import static org.lwjgl.opengl.GL11.GL_QUADS;
-import static org.lwjgl.opengl.GL11.GL_SRC_ALPHA;
-import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
-import static org.lwjgl.opengl.GL11.glBegin;
-import static org.lwjgl.opengl.GL11.glBlendFunc;
-import static org.lwjgl.opengl.GL11.glColor4f;
-import static org.lwjgl.opengl.GL11.glDisable;
-import static org.lwjgl.opengl.GL11.glEnable;
-import static org.lwjgl.opengl.GL11.glEnd;
-import static org.lwjgl.opengl.GL11.glLoadIdentity;
-import static org.lwjgl.opengl.GL11.glMatrixMode;
-import static org.lwjgl.opengl.GL11.glOrtho;
-import static org.lwjgl.opengl.GL11.glPopMatrix;
-import static org.lwjgl.opengl.GL11.glPushMatrix;
-import static org.lwjgl.opengl.GL11.glTexCoord2f;
-import static org.lwjgl.opengl.GL11.glVertex2f;
 
 public class LoadingScreen extends Screen {
     public String loadingText = "";
@@ -68,8 +49,52 @@ public class LoadingScreen extends Screen {
         int textHeight = font.getStringHeight();
         int tx = (width / 2) - (textWidth / 2);
         int ty = (height / 2) - (textHeight / 2);
+
         glColor4f(1f, 1f, 1f, 1f);
         font.drawString(loadingText, tx, ty, loadingColor, true);
+
+        int btnW = 160;
+        int btnH = 28;
+        int btnX = (width - btnW) / 2;
+        int btnY = ty + textHeight + 16;
+        ButtonComponent backBtn = new ButtonComponent("Back", btnX, btnY, btnW, btnH);
+
+        int mx = Mouse.getX();
+        int myFlipped = height - Mouse.getY() - 1;
+        boolean hovered = backBtn.contains(mx, myFlipped);
+
+        while (Mouse.next()) {
+            if (Mouse.getEventButton() == 0 && Mouse.getEventButtonState()) {
+                if (backBtn.contains(mx, myFlipped)) {
+                    Minecraft.mc.disconnect();
+                    return;
+                }
+            }
+        }
+
+        glDisable(GL_TEXTURE_2D);
+        glColor4f(hovered ? 0.6f : 0.2f, hovered ? 0.6f : 0.2f, hovered ? 0.6f : 0.2f, hovered ? 0.85f : 0.75f);
+        glBegin(GL_QUADS);
+        glVertex2f(backBtn.x, backBtn.y);
+        glVertex2f(backBtn.x + backBtn.w, backBtn.y);
+        glVertex2f(backBtn.x + backBtn.w, backBtn.y + backBtn.h);
+        glVertex2f(backBtn.x, backBtn.y + backBtn.h);
+        glEnd();
+
+        glColor4f(0.8f, 0.8f, 0.8f, 0.9f);
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(backBtn.x, backBtn.y);
+        glVertex2f(backBtn.x + backBtn.w, backBtn.y);
+        glVertex2f(backBtn.x + backBtn.w, backBtn.y + backBtn.h);
+        glVertex2f(backBtn.x, backBtn.y + backBtn.h);
+        glEnd();
+
+        glEnable(GL_TEXTURE_2D);
+        int lw = font.getStringWidth(backBtn.label);
+        int lh = font.getStringHeight();
+        int lx = backBtn.x + (backBtn.w - lw) / 2;
+        int ly = backBtn.y + (backBtn.h - lh) / 2;
+        font.drawString(backBtn.label, lx, ly, hovered ? Color.YELLOW : Color.WHITE, true);
 
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
@@ -80,6 +105,7 @@ public class LoadingScreen extends Screen {
         glPopMatrix();
         glMatrixMode(GL_MODELVIEW);
     }
+
     public void setLoadingText(String loadingText) {
         this.loadingText = loadingText;
     }
