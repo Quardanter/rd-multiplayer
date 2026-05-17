@@ -15,7 +15,7 @@ public class CommandManager {
 
     public void execute(String input) {
 
-        String[] split = input.split(" ");
+        String[] split = input.split(" ", 2);
         String label = split[0];
 
         Command command = commands.get(label);
