@@ -1,10 +1,13 @@
 package server;
 
+import com.google.gson.*;
 import global.Packets;
+import netscape.javascript.JSObject;
 import server.auth.AuthDatabase;
 import server.client.Client;
 import server.client.ClientHandler;
 import server.client.TimeoutHandler;
+import server.commands.*;
 import server.level.Level;
 import server.net.Broadcaster;
 
@@ -67,55 +70,22 @@ public class Server {
         server.net.ServerPinger.start();
         server.net.PingBroadcaster.start();
 
+        CommandManager commandManager = new CommandManager();
+        commandManager.register(new KickCommand());
+        commandManager.register(new BanCommand());
+        commandManager.register(new SayCommand());
+        commandManager.register(new TeleportCommand());
+        commandManager.register(new ListCommand());
+
         Scanner scanner = new Scanner(System.in);
+
         Thread t = new Thread(() -> {
             while (scanner.hasNextLine()) {
-                String command = scanner.nextLine();
-                String[] parts = command.split(" ", 2);
-
-                switch (parts[0]) {
-                    case "kick":
-                        String username = parts[1];
-                        Optional<Client> client = getClient(username);
-
-                        if (client.isPresent()) {
-                            client.get().close();
-                            System.out.println("Kicked " + username);
-                        } else {
-                            System.out.println("Player not found: " + username);
-                        }
-                        break;
-                    case "say":
-                        String message = parts[1];
-                        Broadcaster.broadcastChat("SERVER", message);
-                        break;
-                    case "tp":
-                        String[] arg = parts[1].split(" ", 4);
-
-                        client = getClient(arg[0]);
-                        try {
-                            client.ifPresent(c -> {
-                                double x = Double.parseDouble(arg[1]);
-                                double y = Double.parseDouble(arg[2]);
-                                double z = Double.parseDouble(arg[3]);
-                                c.setLastPos(x, y, z, System.currentTimeMillis());
-                                c.send(o -> {
-                                    o.writeByte(Packets.SET_POS);
-                                    o.writeDouble(x);
-                                    o.writeDouble(y);
-                                    o.writeDouble(z);
-                                });
-                            });
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        break;
-
-                }
+                String line = scanner.nextLine();
+                commandManager.execute(line);
             }
         });
         t.start();
-
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
@@ -125,7 +95,7 @@ public class Server {
         }
     }
 
-    private static Optional<Client> getClient(String username) {
+    public static Optional<Client> getClient(String username) {
         return clients.stream()
                 .filter(c -> c.getUsername().equals(username))
                 .findFirst();
