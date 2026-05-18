@@ -7,10 +7,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class RegionStore {
-
     private static final int CACHE_LIMIT = 64;
     private final Path chunkDir;
-
     private final LinkedHashMap<Long, RegionFile> regions =
             new LinkedHashMap<Long, RegionFile>(16, 0.75f, true) {
                 @Override
@@ -37,6 +35,13 @@ public final class RegionStore {
         return chunkDir.resolve("c_" + cx + "_" + cy + "_" + cz + ".dat");
     }
 
+    private Path legacy2dPath(int cx, int cz) {
+        return chunkDir.resolve("c_" + cx + "_" + cz + ".dat");
+    }
+
+    private static final int LEGACY_2D_DEPTH = 64;
+    private static final int LEGACY_2D_CHUNKS_TALL = LEGACY_2D_DEPTH / LevelChunk.CHUNK_SIZE;
+
     private synchronized RegionFile region(int rx, int ry, int rz) throws IOException {
         long key = regionKey(rx, ry, rz);
         RegionFile rf = regions.get(key);
@@ -61,41 +66,51 @@ public final class RegionStore {
                 rf = regions.get(regionKey(rx, ry, rz));
             }
             if (rf == null && !Files.exists(regionPath(rx, ry, rz))) {
-                Path legacy = legacyPath(cx, cy, cz);
-                if (Files.exists(legacy)) {
-                    byte[] migrated = readLegacy(legacy);
-                    if (migrated != null) {
-                        RegionFile newRf = region(rx, ry, rz);
-                        newRf.write(lx, ly, lz, migrated);
-                        try { Files.delete(legacy); } catch (IOException ignored) {}
-                        return migrated;
-                    }
-                }
-                return null;
+                byte[] migrated = tryMigrate(cx, cy, cz);
+                return migrated;
             }
 
             rf = region(rx, ry, rz);
             byte[] data = rf.read(lx, ly, lz);
             if (data != null) return data;
 
-            // region exists
-            Path legacy = legacyPath(cx, cy, cz);
-            if (Files.exists(legacy)) {
-                byte[] migrated = readLegacy(legacy);
-                if (migrated != null) {
-                    rf.write(lx, ly, lz, migrated);
-                    try { Files.delete(legacy); } catch (IOException ignored) {}
-                    return migrated;
-                }
-            }
-            return null;
+            return tryMigrate(cx, cy, cz);
         } catch (IOException e) {
             System.err.println("RegionStore.read failed for (" + cx + ", " + cy + ", " + cz + "): " + e.getMessage());
             return null;
         }
     }
 
-    /** read and update a legacy chunk */
+    private byte[] tryMigrate(int cx, int cy, int cz) throws IOException {
+        Path cubic = legacyPath(cx, cy, cz);
+        if (Files.exists(cubic)) {
+            byte[] migrated = readLegacy(cubic);
+            if (migrated != null) {
+                write(cx, cy, cz, migrated);
+                try { Files.delete(cubic); } catch (IOException ignored) {}
+                return migrated;
+            }
+        }
+
+        Path twoD = legacy2dPath(cx, cz);
+        if (Files.exists(twoD)) {
+            byte[] column = readLegacy2D(twoD);
+            if (column != null) {
+                byte[] requested = null;
+                for (int icy = 0; icy < LEGACY_2D_CHUNKS_TALL; icy++) {
+                    byte[] slice = new byte[LevelChunk.VOLUME];
+                    System.arraycopy(column, icy * LevelChunk.VOLUME, slice, 0, LevelChunk.VOLUME);
+                    write(cx, icy, cz, slice);
+                    if (icy == cy) requested = slice;
+                }
+                try { Files.delete(twoD); } catch (IOException ignored) {}
+                return requested;
+            }
+        }
+
+        return null;
+    }
+
     private byte[] readLegacy(Path legacy) {
         try (java.io.DataInputStream dis = new java.io.DataInputStream(
                 new java.util.zip.GZIPInputStream(Files.newInputStream(legacy)))) {
@@ -104,6 +119,19 @@ public final class RegionStore {
             return data;
         } catch (IOException e) {
             System.err.println("Failed to migrate legacy chunk " + legacy + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private byte[] readLegacy2D(Path legacy) {
+        int expected = LEGACY_2D_DEPTH * LevelChunk.CHUNK_SIZE * LevelChunk.CHUNK_SIZE;
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.util.zip.GZIPInputStream(Files.newInputStream(legacy)))) {
+            byte[] data = new byte[expected];
+            dis.readFully(data);
+            return data;
+        } catch (IOException e) {
+            System.err.println("Failed to migrate legacy 2D chunk " + legacy + ": " + e.getMessage());
             return null;
         }
     }
@@ -123,7 +151,7 @@ public final class RegionStore {
         }
     }
 
-    /** close region files */
+    // close all the regions
     public synchronized void closeAll() {
         for (RegionFile rf : regions.values()) rf.close();
         regions.clear();
