@@ -314,7 +314,7 @@ public class ClientHandler {
                     Server.authDb.savePosition(client.getUsername(),
                             pos[0], pos[1], pos[2],
                             client.getLastYaw(), client.getLastPitch());
-
+                }
                 Server.clients.remove(client);
                 Server.lastKeepAlive.remove(client);
                 Server.skins.remove(client.getUsername());
