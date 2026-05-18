@@ -338,29 +338,36 @@ public class Minecraft implements Runnable {
     boolean EscWasDown = false;
 
     private void tick() throws IOException {
-        info.tickKeys();
-        info.tickScroll();
-
         if (Keyboard.isKeyDown(Keyboard.KEY_F11)) {
             toggleFullscreen();
         }
 
         boolean escDown = Keyboard.isKeyDown(Keyboard.KEY_ESCAPE);
         if (escDown && !EscWasDown) {
-            if(pauseMenu.visible) {
+            if (pauseMenu.visible) {
                 pauseMenu.visible = false;
                 Mouse.setGrabbed(true);
-            } else if(!chat.toggled) {
+            } else if (chat.toggled) {
+                chat.setToggled(false);
+            } else {
                 pauseMenu.visible = true;
                 Mouse.setGrabbed(false);
-            } else {
-                chat.setToggled(false);
+            }
         }
         EscWasDown = escDown;
 
         boolean f2Down = Keyboard.isKeyDown(Keyboard.KEY_F2);
         if (f2Down && !f2WasDown) screenshot();
         f2WasDown = f2Down;
+
+        if (pauseMenu.visible) {
+            while (Keyboard.next()) { /* drop */ }
+            while (Mouse.next())    { /* drop */ }
+            return;
+        }
+
+        info.tickKeys();
+        info.tickScroll();
 
         int[] update;
         while ((update = SocketClient.pendingBlocks.poll()) != null) {
@@ -433,6 +440,8 @@ public class Minecraft implements Runnable {
             pick(pt);
 
             while (Mouse.next()) {
+                if (pauseMenu.visible) continue;
+
                 if (Mouse.isGrabbed() && !chat.toggled) {
                     localPlayer.turn(Mouse.getEventDX(), Mouse.getEventDY());
                 }

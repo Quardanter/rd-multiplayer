@@ -74,8 +74,6 @@ public class PauseMenu {
         boolean isMouseDown = Mouse.isButtonDown(0);
 
         if (isMouseDown && !wasMouseDown) {
-            System.out.println("hello!");
-
             if (resumeBtn.contains(mx, my)) {
                 visible = false;
                 Mouse.setGrabbed(true);
