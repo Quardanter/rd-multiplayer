@@ -82,6 +82,9 @@ public class SocketClient implements Runnable {
             setLoading("Authentication successful!", Color.GREEN);
             authenticated = true;
 
+            client.mods.ModRegistry.get().fire(
+                new client.mods.ModEvents.ServerConnected(host, port));
+
             uploadSkinIfPresent();
 
             sendRenderDistance(client.Settings.getRenderDistance());
@@ -178,6 +181,8 @@ public class SocketClient implements Runnable {
                         String author  = in.readUTF();
                         String message = in.readUTF();
                         if (mc.chat != null) mc.chat.addMessage(author, message);
+                        client.mods.ModRegistry.get().fire(
+                            new client.mods.ModEvents.ChatReceived(author, message));
                         break;
                     }
 
@@ -202,6 +207,8 @@ public class SocketClient implements Runnable {
                         } else {
                             if (mc.localPlayer != null) mc.localPlayer.sendPosition();
                         }
+                        client.mods.ModRegistry.get().fire(
+                            new client.mods.ModEvents.PlayerConnection(type, uname));
                         break;
                     }
 
@@ -239,8 +246,15 @@ public class SocketClient implements Runnable {
             t.printStackTrace();
             if (Minecraft.mc != null) Minecraft.mc.disconnectPending = true;
         } finally {
+            boolean wasAuthed = authenticated;
             authenticated = false;
             closeSocketQuietly();
+            if (wasAuthed) {
+                try {
+                    client.mods.ModRegistry.get().fire(new client.mods.ModEvents.ServerDisconnected());
+                } catch (Throwable ignored) {
+                }
+            }
         }
     }
 

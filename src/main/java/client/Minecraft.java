@@ -220,6 +220,7 @@ public class Minecraft implements Runnable {
     }
 
     public void destroy() {
+        try { client.mods.ModLoader.disposeAll(); } catch (Throwable ignored) {}
         Mouse.destroy();
         Keyboard.destroy();
         Display.destroy();
@@ -235,11 +236,11 @@ public class Minecraft implements Runnable {
             JOptionPane.showMessageDialog(null, e, "Failed to start Minecraft", JOptionPane.ERROR_MESSAGE);
             System.exit(0);
         }
+        client.mods.ModLoader.loadAll();
 
         if (currentScreen == null) currentScreen = new MenuScreen();
 
         while (!Display.isCloseRequested()) {
-
             while (!Display.isCloseRequested() && !levelReady) {
                 if (disconnectPending) {
                     applyDisconnect();
@@ -266,7 +267,6 @@ public class Minecraft implements Runnable {
                 currentScreen = null;
                 Mouse.setGrabbed(true);
             }
-
             startKeepAlive(socket);
 
             int frames = 0;
@@ -314,6 +314,8 @@ public class Minecraft implements Runnable {
     boolean f2WasDown = false;
     boolean EscWasDown = false;
 
+    private final java.util.Set<Integer> modKeysDown = new java.util.HashSet<>();
+
     private void tick() throws IOException {
         if (Keyboard.isKeyDown(Keyboard.KEY_F11)) {
             toggleFullscreen();
@@ -354,6 +356,29 @@ public class Minecraft implements Runnable {
             }
         }
         if (localPlayer != null && socket != null && socket.isConnected()) localPlayer.tick();
+
+        client.mods.ModRegistry.get().dispatchTick();
+        if (!chat.toggled && currentScreen == null) {
+            dispatchModKeybinds();
+        }
+    }
+
+    private void dispatchModKeybinds() {
+        client.mods.ModRegistry reg = client.mods.ModRegistry.get();
+
+        java.util.Set<Integer> nowDown = new java.util.HashSet<>();
+        for (Integer key : modKeybindKeys()) {
+            if (Keyboard.isKeyDown(key)) {
+                nowDown.add(key);
+                if (!modKeysDown.contains(key)) reg.dispatchKeyPress(key);
+            }
+        }
+        modKeysDown.clear();
+        modKeysDown.addAll(nowDown);
+    }
+
+    private static java.util.Set<Integer> modKeybindKeys() {
+        return client.mods.ModRegistry.get().keybindKeys();
     }
 
     private void toggleFullscreen() {
@@ -429,7 +454,8 @@ public class Minecraft implements Runnable {
                 if (Mouse.getEventButtonState() && hitResult != null && !chat.toggled) {
                     if (Mouse.getEventButton() == 0) {
                         SocketClient.sendBlock(Packets.BLOCK_BREAK, hitResult.x, hitResult.y, hitResult.z);
-
+                        client.mods.ModRegistry.get().fire(
+                            new client.mods.ModEvents.BlockBreak(hitResult.x, hitResult.y, hitResult.z));
                     }
                     if (Mouse.getEventButton() == 1) {
                         int x = hitResult.x, y = hitResult.y, z = hitResult.z;
@@ -447,7 +473,11 @@ public class Minecraft implements Runnable {
                                 pMaxX > x && pMinX < x+1 &&
                                         pMaxY > y && pMinY < y+1 &&
                                         pMaxZ > z && pMinZ < z+1;
-                        if (!intersects) SocketClient.sendBlock(Packets.BLOCK_PLACE, x, y, z, info.getSelectedBlockId());
+                        if (!intersects) {
+                            int bid = info.getSelectedBlockId();
+                            SocketClient.sendBlock(Packets.BLOCK_PLACE, x, y, z, bid);
+                            client.mods.ModRegistry.get().fire(new client.mods.ModEvents.BlockPlace(x, y, z, bid));
+                        }
                     }
                 }
             }
@@ -495,12 +525,44 @@ public class Minecraft implements Runnable {
             crosshair.render(width, height);
             info.render(width, height);
             pauseMenu.render(font, width, height);
+
+            renderModHud();
+
             chat.render(width, height);
         } else if (currentScreen != null) {
             currentScreen.render(font, width, height);
         }
 
         Display.update();
+    }
+
+    private void renderModHud() {
+        GL.matrixMode(GL.PROJECTION);
+        GL.pushMatrix();
+        GL.loadIdentity();
+        GL.ortho(0, width, height, 0, -1, 1);
+        GL.matrixMode(GL.MODELVIEW);
+        GL.pushMatrix();
+        GL.loadIdentity();
+
+        GL.disable(GL.DEPTH_TEST);
+        GL.disable(GL.TEXTURE_2D);
+        GL.enable(GL.BLEND);
+        GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
+
+        try {
+            client.mods.ModRegistry.get().dispatchHud(width, height);
+        } finally {
+            GL.color4f(1f, 1f, 1f, 1f);
+            GL.disable(GL.BLEND);
+            GL.enable(GL.DEPTH_TEST);
+
+            GL.matrixMode(GL.MODELVIEW);
+            GL.popMatrix();
+            GL.matrixMode(GL.PROJECTION);
+            GL.popMatrix();
+            GL.matrixMode(GL.MODELVIEW);
+        }
     }
 
     //TODO: prob put this somewhere else
