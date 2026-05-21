@@ -2,6 +2,10 @@ package client.gfx;
 
 import org.lwjgl.opengl.ARBVertexBufferObject;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.ContextCapabilities;
+import org.lwjgl.opengl.GLContext;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -132,7 +136,7 @@ public final class GL {
     public static void colorPointer(int size, int stride, FloatBuffer buf) { GL11.glColorPointer(size, stride, buf); }
     public static void texCoordPointer(int size, int stride, FloatBuffer buf) { GL11.glTexCoordPointer(size, stride, buf); }
 
-    /** VBO offset forms, call after binding an ARRAY_BUFFER. */
+    // VBO offset
     public static void vertexPointer(int size, int type, int stride, long offset) { GL11.glVertexPointer(size, type, stride, offset); }
     public static void normalPointer(int type, int stride, long offset) { GL11.glNormalPointer(type, stride, offset); }
     public static void colorPointer(int size, int type, int stride, long offset) { GL11.glColorPointer(size, type, stride, offset); }
@@ -194,4 +198,51 @@ public final class GL {
     public static void bufferData(int target, ByteBuffer data, int usage) {
         ARBVertexBufferObject.glBufferDataARB(target, data, usage);
     }
+
+    // shader pipeline (GL 2.0 / GLSL 1.20)
+    public static final int VERTEX_SHADER = GL20.GL_VERTEX_SHADER;
+    public static final int FRAGMENT_SHADER = GL20.GL_FRAGMENT_SHADER;
+    public static final int COMPILE_STATUS = GL20.GL_COMPILE_STATUS;
+    public static final int LINK_STATUS = GL20.GL_LINK_STATUS;
+    public static final int INFO_LOG_LENGTH = GL20.GL_INFO_LOG_LENGTH;
+
+    public static boolean hasShaderSupport() {
+        ContextCapabilities caps = GLContext.getCapabilities();
+        return caps.OpenGL20;
+    }
+
+    public static int createShader(int type) { return GL20.glCreateShader(type); }
+    public static void shaderSource(int shader, CharSequence source) { GL20.glShaderSource(shader, source); }
+    public static void compileShader(int shader) { GL20.glCompileShader(shader); }
+    public static int getShaderi(int shader, int pname) { return GL20.glGetShaderi(shader, pname); }
+    public static String getShaderInfoLog(int shader, int maxLen) { return GL20.glGetShaderInfoLog(shader, maxLen); }
+    public static void deleteShader(int shader) { GL20.glDeleteShader(shader); }
+
+    public static int createProgram() { return GL20.glCreateProgram(); }
+    public static void attachShader(int program, int shader) { GL20.glAttachShader(program, shader); }
+    public static void linkProgram(int program) { GL20.glLinkProgram(program); }
+    public static int getProgrami(int program, int pname) { return GL20.glGetProgrami(program, pname); }
+    public static String getProgramInfoLog(int program, int maxLen) { return GL20.glGetProgramInfoLog(program, maxLen); }
+    public static void useProgram(int program) { GL20.glUseProgram(program); }
+    public static void deleteProgram(int program) { GL20.glDeleteProgram(program); }
+
+    public static int getUniformLocation(int program, CharSequence name) { return GL20.glGetUniformLocation(program, name); }
+    public static int getAttribLocation(int program, CharSequence name) { return GL20.glGetAttribLocation(program, name); }
+    public static void bindAttribLocation(int program, int index, CharSequence name) { GL20.glBindAttribLocation(program, index, name); }
+
+    public static void uniform1i(int loc, int v) { GL20.glUniform1i(loc, v); }
+    public static void uniform1f(int loc, float v) { GL20.glUniform1f(loc, v); }
+    public static void uniform3f(int loc, float a, float b, float c) { GL20.glUniform3f(loc, a, b, c); }
+    public static void uniform4f(int loc, float a, float b, float c, float d) { GL20.glUniform4f(loc, a, b, c, d); }
+
+    // vertex attribute arrays
+    public static void enableVertexAttribArray(int index) { GL20.glEnableVertexAttribArray(index); }
+    public static void disableVertexAttribArray(int index) { GL20.glDisableVertexAttribArray(index); }
+    public static void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long offset) {
+        GL20.glVertexAttribPointer(index, size, type, normalized, stride, offset);
+    }
+
+    // multitexture
+    public static final int TEXTURE0 = GL13.GL_TEXTURE0;
+    public static void activeTexture(int unit) { GL13.glActiveTexture(unit); }
 }

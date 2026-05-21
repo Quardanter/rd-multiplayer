@@ -1,6 +1,7 @@
 package client.level;
 
 import client.*;
+import client.gfx.ChunkShader;
 import client.gfx.GL;
 import client.level.block.BlockRegistry;
 import client.level.block.Block;
@@ -8,6 +9,7 @@ import client.player.remote.PlayerManager;
 import client.phys.AABB;
 import client.player.local.LocalPlayer;
 import client.player.render.PlayerRenderer;
+import client.world.WorldTime;
 
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +27,7 @@ public class LevelRenderer implements LevelListener {
 
     private final Set<Long> pendingLoad   = ConcurrentHashMap.newKeySet();
     private final Set<Long> pendingUnload = ConcurrentHashMap.newKeySet();
-
+ 
     private final java.util.ArrayList<Chunk> sortedRender = new java.util.ArrayList<>();
 
     public LevelRenderer(Level level) {
@@ -46,7 +48,7 @@ public class LevelRenderer implements LevelListener {
     }
     private static int rcCX(long k) { return signExtend21((k >> 42) & 0x1FFFFF); }
     private static int rcCY(long k) { return signExtend21((k >> 21) & 0x1FFFFF); }
-    private static int rcCZ(long k) { return signExtend21( k        & 0x1FFFFF); }
+    private static int rcCZ(long k) { return signExtend21( k & 0x1FFFFF); }
 
     @Override
     public void chunkLoaded(int cx, int cy, int cz) {
@@ -95,7 +97,6 @@ public class LevelRenderer implements LevelListener {
     }
 
     private void applyPendingChunks() {
-        // unload chunks
         for (java.util.Iterator<Long> it = pendingUnload.iterator(); it.hasNext(); ) {
             long key = it.next();
             it.remove();
@@ -188,6 +189,7 @@ public class LevelRenderer implements LevelListener {
         if (layer == 0) {
             applyPendingChunks();
             Chunk.rebuiltThisFrame = 0;
+
             sortedRender.clear();
             sortedRender.addAll(renderChunks.values());
             int[] pc = playerChunkCoords();
@@ -199,17 +201,56 @@ public class LevelRenderer implements LevelListener {
             }
         }
 
-        Frustum frustum = Frustum.getFrustum();
-        if (layer == 1) {
-            for (int i = sortedRender.size() - 1; i >= 0; i--) {
-                Chunk rc = sortedRender.get(i);
-                if (frustum.cubeInFrustum(rc.boundingBox)) rc.render(layer);
+        beginChunkPass();
+        try {
+            Frustum frustum = Frustum.getFrustum();
+            if (layer == 1) {
+                for (int i = sortedRender.size() - 1; i >= 0; i--) {
+                    Chunk rc = sortedRender.get(i);
+                    if (frustum.cubeInFrustum(rc.boundingBox)) rc.render(layer);
+                }
+            } else {
+                for (Chunk rc : sortedRender) {
+                    if (frustum.cubeInFrustum(rc.boundingBox)) rc.render(layer);
+                }
             }
-        } else {
-            for (Chunk rc : sortedRender) {
-                if (frustum.cubeInFrustum(rc.boundingBox)) rc.render(layer);
-            }
+        } finally {
+            endChunkPass();
         }
+    }
+
+    private void beginChunkPass() {
+        ChunkShader shader = ChunkShader.get();
+        shader.use();
+
+        float[] sun = WorldTime.sunDirection();
+        float[] ambient = WorldTime.ambientLight();
+        float[] diffuse = WorldTime.diffuseLight();
+        float gamma = Settings.gammaMultiplier();
+
+        shader.setSunDir(sun[0], sun[1], sun[2]);
+        shader.setSunColor(diffuse[0], diffuse[1], diffuse[2]);
+        shader.setAmbient(ambient[0], ambient[1], ambient[2]);
+        shader.setGamma(gamma);
+
+        GL.activeTexture(GL.TEXTURE0);
+        GL.enable(GL.TEXTURE_2D);
+        Textures.bind(Chunk.TEXTURE);
+
+        GL.enableVertexAttribArray(ChunkShader.ATTR_POS);
+        GL.enableVertexAttribArray(ChunkShader.ATTR_NORMAL);
+        GL.enableVertexAttribArray(ChunkShader.ATTR_COLOR);
+        GL.enableVertexAttribArray(ChunkShader.ATTR_UV);
+    }
+
+    private void endChunkPass() {
+        GL.disableVertexAttribArray(ChunkShader.ATTR_UV);
+        GL.disableVertexAttribArray(ChunkShader.ATTR_COLOR);
+        GL.disableVertexAttribArray(ChunkShader.ATTR_NORMAL);
+        GL.disableVertexAttribArray(ChunkShader.ATTR_POS);
+        GL.bindBuffer(GL.ARRAY_BUFFER, 0);
+        GL.disable(GL.TEXTURE_2D);
+        ChunkShader.get().unuse();
     }
 
     public void rebuildAll() {
@@ -292,7 +333,7 @@ public class LevelRenderer implements LevelListener {
     }
     private static int unpackTntX(long k) { return signExtend21((k >> 42) & 0x1FFFFF); }
     private static int unpackTntY(long k) { return signExtend21((k >> 21) & 0x1FFFFF); }
-    private static int unpackTntZ(long k) { return signExtend21( k        & 0x1FFFFF); }
+    private static int unpackTntZ(long k) { return signExtend21(k & 0x1FFFFF); }
 
     public void renderTntOverlay() {
         if (tntPositions.isEmpty()) return;

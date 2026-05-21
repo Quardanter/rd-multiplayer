@@ -1,6 +1,7 @@
 package client.level;
 
 import client.Textures;
+import client.gfx.ChunkShader;
 import client.gfx.GL;
 import client.level.block.BlockRegistry;
 import client.level.block.Block;
@@ -10,7 +11,7 @@ import java.nio.FloatBuffer;
 
 public class Chunk {
 
-    private static final int TEXTURE = Textures.loadTexture("/client/textures/terrain.png", GL.NEAREST);
+    static final int TEXTURE = Textures.loadTexture("/client/textures/terrain.png", GL.NEAREST);
 
     public static int rebuiltThisFrame;
     public static int updates;
@@ -102,30 +103,18 @@ public class Chunk {
         int vc = vertexCounts[layer];
         if (vc == 0) return;
 
-        GL.enable(GL.TEXTURE_2D);
-        Textures.bind(TEXTURE);
-
         GL.bindBuffer(GL.ARRAY_BUFFER, vboIds[layer]);
 
-        GL.enableClientState(GL.VERTEX_ARRAY);
-        GL.enableClientState(GL.NORMAL_ARRAY);
-        GL.enableClientState(GL.COLOR_ARRAY);
-        GL.enableClientState(GL.TEXTURE_COORD_ARRAY);
-
-        GL.vertexPointer  (3, GL.FLOAT, ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.POS_OFFSET);
-        GL.normalPointer  (   GL.FLOAT, ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.NORMAL_OFFSET);
-        GL.colorPointer   (3, GL.FLOAT, ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.COLOR_OFFSET);
-        GL.texCoordPointer(2, GL.FLOAT, ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.UV_OFFSET);
+        GL.vertexAttribPointer(ChunkShader.ATTR_POS,    3, GL.FLOAT, false,
+            ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.POS_OFFSET);
+        GL.vertexAttribPointer(ChunkShader.ATTR_NORMAL, 3, GL.FLOAT, false,
+            ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.NORMAL_OFFSET);
+        GL.vertexAttribPointer(ChunkShader.ATTR_COLOR,  3, GL.FLOAT, false,
+            ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.COLOR_OFFSET);
+        GL.vertexAttribPointer(ChunkShader.ATTR_UV,     2, GL.FLOAT, false,
+            ChunkMeshBuilder.STRIDE_BYTES, ChunkMeshBuilder.UV_OFFSET);
 
         GL.drawArrays(GL.QUADS, 0, vc);
-
-        GL.disableClientState(GL.TEXTURE_COORD_ARRAY);
-        GL.disableClientState(GL.COLOR_ARRAY);
-        GL.disableClientState(GL.NORMAL_ARRAY);
-        GL.disableClientState(GL.VERTEX_ARRAY);
-
-        GL.bindBuffer(GL.ARRAY_BUFFER, 0);
-        GL.disable(GL.TEXTURE_2D);
     }
 
     public void rebuildNow(int layer) {
