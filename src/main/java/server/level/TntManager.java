@@ -11,9 +11,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public final class TntManager {
-
     public static final int TNT_BLOCK_ID = 7;
     public static final int OBSIDIAN_BLOCK_ID = 4;
+    public static final int WATER_BLOCK_ID = 8;
 
     public static final int FUSE_SECONDS = 5;
     public static final int BLAST_RADIUS = 3;
@@ -68,6 +68,7 @@ public final class TntManager {
 
                     if (id == 0) continue;
                     if (id == OBSIDIAN_BLOCK_ID) continue;
+                    if (id == WATER_BLOCK_ID) continue;
 
                     if (id == TNT_BLOCK_ID) {
                         schedule(bx, by, bz);

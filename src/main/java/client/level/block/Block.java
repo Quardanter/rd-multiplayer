@@ -106,7 +106,7 @@ public abstract class Block {
             float u2,float v2,
             float u3,float v3
     ) {
-        boolean culled = (ny != 0) ? level.isSolidForCullingY(x, y, z) : level.isSolidForCulling(x, y, z);
+        boolean culled = (ny != 0) ? level.isOpaqueForCullingY(x, y, z) : level.isOpaqueForCulling(x, y, z);
         if (culled) return;
 
         float b = level.getBrightness(x, y, z) * shade;

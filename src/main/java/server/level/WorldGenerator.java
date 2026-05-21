@@ -17,6 +17,10 @@ public final class WorldGenerator {
     public static final int MIN_SURFACE = 5;
     /** Maximum surface Y. */
     public static final int MAX_SURFACE = 60;
+    /** Water fills air blocks between (surfaceY, SEA_LEVEL] inclusive of SEA_LEVEL. */
+    public static final int SEA_LEVEL = 12;
+    /** Block id for water — must match BlockRegistry.WATER / Level.WATER_ID on the client. */
+    private static final byte WATER_ID = 8;
 
     private WorldGenerator() {}
 
@@ -100,13 +104,19 @@ public final class WorldGenerator {
     private static byte blockAt(int wy, int surfaceY, boolean isDesert) {
         if (wy == WORLD_FLOOR) return 2;
         if (wy < WORLD_FLOOR) return 0;
-        if (wy > surfaceY) return 0;
+        if (wy > surfaceY) {
+            // Above terrain but at or below sea level → fill with water.
+            // Above sea level → air.
+            return (wy <= SEA_LEVEL) ? WATER_ID : 0;
+        }
 
         if (isDesert) {
             if (wy >= surfaceY - 5) return 5; // sand
             return 2; // cobble
         } else {
-            if (wy == surfaceY) return 1; // grass
+            // Submerged terrain (top is below sea level): dirt instead of
+            // grass on the surface, since grass underwater looks wrong.
+            if (wy == surfaceY) return (surfaceY < SEA_LEVEL) ? (byte) 3 : (byte) 1;
             if (wy >= surfaceY - 3) return 3; // dirt
             return 2; // cobble
         }

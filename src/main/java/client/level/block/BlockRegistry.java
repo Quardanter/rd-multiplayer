@@ -3,6 +3,7 @@ package client.level.block;
 import client.level.FaceTextures;
 import client.level.block.impl.StandardBlock;
 import client.level.block.impl.TntBlock;
+import client.level.block.impl.WaterBlock;
 
 public final class BlockRegistry {
     public static final Block AIR = null;
@@ -13,9 +14,10 @@ public final class BlockRegistry {
     public static final Block SAND = new StandardBlock(5, "Sand", 5);
     public static final Block BRICKS = new StandardBlock(6, "Bricks", 6);
     public static final Block TNT = new TntBlock(7, "TNT", FaceTextures.column(9, 7, 8));
+    public static final Block WATER = new WaterBlock(8, "Water", 10);
 
     //these mfs have to be in order!!
-    private static final Block[] BLOCKS = { AIR, GRASS, COBBLE, DIRT, OBSIDIAN, SAND, BRICKS, TNT };
+    private static final Block[] BLOCKS = { AIR, GRASS, COBBLE, DIRT, OBSIDIAN, SAND, BRICKS, TNT, WATER };
 
     public static Block get(int id) {
         return id > 0 && id < BLOCKS.length ? BLOCKS[id] : null;

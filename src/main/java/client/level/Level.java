@@ -103,7 +103,7 @@ public class Level {
     }
     private static int unpackCX(long k) { return signExtend21((k >> 42) & 0x1FFFFF); }
     private static int unpackCY(long k) { return signExtend21((k >> 21) & 0x1FFFFF); }
-    private static int unpackCZ(long k) { return signExtend21( k        & 0x1FFFFF); }
+    private static int unpackCZ(long k) { return signExtend21( k & 0x1FFFFF); }
 
     public byte getRawBlock(int x, int y, int z) {
         int cx = Math.floorDiv(x, CHUNK_SIZE);
@@ -126,7 +126,10 @@ public class Level {
     }
 
     public boolean isSolidTile(int x, int y, int z) {
-        return isTile(x, y, z);
+        int id = getRawBlock(x, y, z) & 0xFF;
+        if (id == 0) return false;
+        if (id == WATER_ID) return false;
+        return true;
     }
 
     public boolean isSolidForCulling(int x, int y, int z) {
@@ -134,7 +137,7 @@ public class Level {
         int cy = Math.floorDiv(y, CHUNK_SIZE);
         int cz = Math.floorDiv(z, CHUNK_SIZE);
         byte[] data = chunks.get(chunkKey(cx, cy, cz));
-        if (data == null) return true; // unloaded → treat as solid
+        if (data == null) return true; // unloaded
         int lx = Math.floorMod(x, CHUNK_SIZE);
         int ly = Math.floorMod(y, CHUNK_SIZE);
         int lz = Math.floorMod(z, CHUNK_SIZE);
@@ -146,11 +149,47 @@ public class Level {
         int cy = Math.floorDiv(y, CHUNK_SIZE);
         int cz = Math.floorDiv(z, CHUNK_SIZE);
         byte[] data = chunks.get(chunkKey(cx, cy, cz));
-        if (data == null) return false; // unloaded → treat as air
+        if (data == null) return false; // unloaded
         int lx = Math.floorMod(x, CHUNK_SIZE);
         int ly = Math.floorMod(y, CHUNK_SIZE);
         int lz = Math.floorMod(z, CHUNK_SIZE);
         return data[(ly * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] != 0;
+    }
+
+    public boolean isOpaqueForCulling(int x, int y, int z) {
+        int cx = Math.floorDiv(x, CHUNK_SIZE);
+        int cy = Math.floorDiv(y, CHUNK_SIZE);
+        int cz = Math.floorDiv(z, CHUNK_SIZE);
+        byte[] data = chunks.get(chunkKey(cx, cy, cz));
+        if (data == null) return true; // unloaded
+        int lx = Math.floorMod(x, CHUNK_SIZE);
+        int ly = Math.floorMod(y, CHUNK_SIZE);
+        int lz = Math.floorMod(z, CHUNK_SIZE);
+        return isOpaqueId(data[(ly * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] & 0xFF);
+    }
+
+    public boolean isOpaqueForCullingY(int x, int y, int z) {
+        int cx = Math.floorDiv(x, CHUNK_SIZE);
+        int cy = Math.floorDiv(y, CHUNK_SIZE);
+        int cz = Math.floorDiv(z, CHUNK_SIZE);
+        byte[] data = chunks.get(chunkKey(cx, cy, cz));
+        if (data == null) return false; // unloaded
+        int lx = Math.floorMod(x, CHUNK_SIZE);
+        int ly = Math.floorMod(y, CHUNK_SIZE);
+        int lz = Math.floorMod(z, CHUNK_SIZE);
+        return isOpaqueId(data[(ly * CHUNK_SIZE + lz) * CHUNK_SIZE + lx] & 0xFF);
+    }
+
+    public boolean isWater(int x, int y, int z) {
+        return (getRawBlock(x, y, z) & 0xFF) == WATER_ID;
+    }
+
+    public static final int WATER_ID = 8;
+
+    private static boolean isOpaqueId(int id) {
+        if (id == 0) return false;
+        if (id == WATER_ID) return false;
+        return true;
     }
 
     public boolean isLightBlocker(int x, int y, int z) {
