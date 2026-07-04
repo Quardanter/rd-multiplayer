@@ -6,7 +6,6 @@ import client.gfx.GL;
 import client.level.block.BlockRegistry;
 import client.level.block.Block;
 import client.player.remote.PlayerManager;
-import client.phys.AABB;
 import client.player.local.LocalPlayer;
 import client.player.render.PlayerRenderer;
 import client.world.WorldTime;
@@ -261,42 +260,50 @@ public class LevelRenderer implements LevelListener {
         }
     }
 
-    public void pick(LocalPlayer localPlayer) {
-        float radius = 3.0F;
-        AABB bb = localPlayer.boundingBox.grow(radius, radius, radius);
+    public HitResult pick(LocalPlayer localPlayer) {
+        float reach = 3.0F;
+        float step = 0.05F;
 
-        int x0 = (int) bb.minX, x1 = (int) (bb.maxX + 1);
-        int y0 = (int) bb.minY, y1 = (int) (bb.maxY + 1);
-        int z0 = (int) bb.minZ, z1 = (int) (bb.maxZ + 1);
+        double eyeX = localPlayer.x, eyeY = localPlayer.y, eyeZ = localPlayer.z;
 
-        GL.initNames();
-        for (int x = x0; x < x1; x++) {
-            GL.pushName(x);
-            for (int y = y0; y < y1; y++) {
-                GL.pushName(y);
-                for (int z = z0; z < z1; z++) {
-                    GL.pushName(z);
-                    if (level.isSolidTile(x, y, z)) {
-                        int blockId = level.getRawBlock(x, y, z) & 0xFF;
-                        Block block = BlockRegistry.get(blockId);
-                        if (block != null) {
-                            GL.pushName(0);
-                            for (int face = 0; face < 6; face++) {
-                                GL.pushName(face);
-                                tessellator.init();
-                                block.renderFace(tessellator, x, y, z, face);
-                                tessellator.flush();
-                                GL.popName();
-                            }
-                            GL.popName();
-                        }
-                    }
-                    GL.popName();
-                }
-                GL.popName();
+        double yawRad = Math.toRadians(localPlayer.yRotation);
+        double pitchRad = Math.toRadians(localPlayer.xRotation);
+        double dx = Math.sin(yawRad) * Math.cos(pitchRad);
+        double dy = -Math.sin(pitchRad);
+        double dz = -Math.cos(yawRad) * Math.cos(pitchRad);
+
+        int prevBX = Integer.MIN_VALUE, prevBY = Integer.MIN_VALUE, prevBZ = Integer.MIN_VALUE;
+
+        int steps = (int) Math.ceil(reach / step);
+        for (int i = 1; i <= steps; i++) {
+            double t = i * step;
+            int bx = (int) Math.floor(eyeX + dx * t);
+            int by = (int) Math.floor(eyeY + dy * t);
+            int bz = (int) Math.floor(eyeZ + dz * t);
+
+            if (bx == prevBX && by == prevBY && bz == prevBZ) continue;
+
+            if (level.isSolidTile(bx, by, bz)) {
+                int face = entryFace(prevBX, prevBY, prevBZ, bx, by, bz, dx, dy, dz);
+                int type = level.getRawBlock(bx, by, bz) & 0xFF;
+                return new HitResult(bx, by, bz, type, face);
             }
-            GL.popName();
+
+            prevBX = bx; prevBY = by; prevBZ = bz;
         }
+        return null;
+    }
+
+    private static int entryFace(int prevBX, int prevBY, int prevBZ,int bx, int by, int bz,double dx, double dy, double dz) {
+        if (prevBX != Integer.MIN_VALUE) {
+            if (bx != prevBX) return bx > prevBX ? 4 : 5;
+            if (by != prevBY) return by > prevBY ? 0 : 1;
+            if (bz != prevBZ) return bz > prevBZ ? 2 : 3;
+        }
+        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+        if (ax >= ay && ax >= az) return dx > 0 ? 4 : 5;
+        if (ay >= ax && ay >= az) return dy > 0 ? 0 : 1;
+        return dz > 0 ? 2 : 3;
     }
 
     public void renderHit(HitResult hitResult) {
@@ -306,8 +313,7 @@ public class LevelRenderer implements LevelListener {
 
         GL.enable(GL.BLEND);
         GL.blendFunc(GL.SRC_ALPHA, GL.CURRENT_BIT);
-        GL.color4f(1f, 1f, 1f,
-                (float) Math.sin(System.currentTimeMillis() / 100.0) * 0.2f + 0.4f);
+        GL.color4f(1f, 1f, 1f,(float) Math.sin(System.currentTimeMillis() / 100.0) * 0.2f + 0.4f);
         tessellator.init();
         block.renderFace(tessellator, hitResult.x, hitResult.y, hitResult.z, hitResult.face);
         tessellator.flush();
