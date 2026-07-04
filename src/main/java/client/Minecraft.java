@@ -38,7 +38,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -101,7 +100,6 @@ public class Minecraft implements Runnable {
 
     public Camera camera;
 
-    private final IntBuffer selectBuffer = BufferUtils.createIntBuffer(2000);
     private HitResult hitResult;
 
     private final SkyRenderer skyRenderer = new SkyRenderer();
@@ -399,33 +397,7 @@ public class Minecraft implements Runnable {
     }
 
     private void pick(float pt) {
-        selectBuffer.clear();
-        GL.selectBuffer(selectBuffer);
-        GL.renderMode(GL.SELECT);
-        camera.setupPick(pt, width / 2, height / 2);
-        levelRenderer.pick(localPlayer);
-        selectBuffer.flip();
-        selectBuffer.limit(selectBuffer.capacity());
-
-        long closest = 0L;
-        int[] names = new int[10];
-        int hitNameCount = 0;
-
-        int hits = GL.renderMode(GL.RENDER);
-        for (int hi = 0; hi < hits; hi++) {
-            int nameCount = selectBuffer.get();
-            long minZ = selectBuffer.get();
-            selectBuffer.get();
-            if (minZ < closest || hi == 0) {
-                closest = minZ;
-                hitNameCount = nameCount;
-                for (int ni = 0; ni < nameCount; ni++) names[ni] = selectBuffer.get();
-            } else {
-                for (int ni = 0; ni < nameCount; ni++) selectBuffer.get();
-            }
-        }
-
-        hitResult = hitNameCount > 0 ? new HitResult(names[0], names[1], names[2], names[3], names[4]) : null;
+        hitResult = levelRenderer.pick(localPlayer);
     }
 
     private void render(float pt) throws IOException {
